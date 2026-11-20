@@ -15,7 +15,7 @@ const customPalette = { name: '自选', rich: ['#4a9bff', '#80c7ff'], pale: ['#d
 const allPalettes = palettes.concat(customPalette);
 const customPaletteIndex = palettes.length;
 const styles = ['侧光蝶影', '冰晶蝶翼', '幻彩蝶翼'];
-const layoutNames = ['错落蝶群', '绕线蝶树'];
+const layoutNames = ['错落蝶群', '绕线蝶树', '蝶翼圣诞树'];
 const butterflyColors = ['主色', '浅色', '双色'];
 const effectNames = ['星尘', '光斑', '流光', '极光'];
 const topperNames = ['金辉五角', '冰晶八芒', '银雪星芒'];
@@ -31,7 +31,10 @@ let backgroundStyle = 0;
 let effect = 2;
 let topper = 2;
 let butterflyStyle = 2;
-let arrangement = 1;
+let arrangement = 2;
+let crown = [];
+let flutterUntil = 0;
+let lightStart = -5000;
 let newColor = 0;
 let newOpacity = .90;
 let lit = false;
@@ -348,6 +351,39 @@ function buildLoopLayers(seed) {
   });
 }
 
+// Insert each butterfly in the widest available gap. Every density is a
+// prefix of the same arrangement, so changing density never moves a wing.
+function buildCrown(seed) {
+  const random = rng(seed);
+  crown = [];
+  function place(x, y) {
+    const order = crown.length;
+    const size = order === 0 ? 18 : (order % 5 === 2 ? 32 : order % 7 === 4 ? 19 : 26) + random() * 3;
+    const b = butterfly(x, y, size, random, undefined, order, (random() - .5) * .65, x - center);
+    b.tone = (order * .618034 + .12) % 1;
+    b.opacity = .89 + random() * .11;
+    crown.push(b);
+  }
+  place(center, 123);
+  // Tips of the three branch tiers and a gently curved base.
+  [[51,200],[92,277],[137,365]].forEach(([radius,y]) => {
+    place(center-radius,y); place(center+radius,y+2);
+  });
+  place(center,380);
+  while (crown.length < 108) {
+    let best, widest = -Infinity;
+    for (let attempt = 0; attempt < 90; attempt++) {
+      const y = 127 + random() * 250;
+      const half = y < 202 ? 8+(y-127)*.58 : y < 279 ? 34+(y-202)*.77 : 63+(y-279)*.85;
+      const x = (random()*2-1)*half;
+      if (y > 379 - 13*Math.pow(Math.abs(x)/140,2)) continue;
+      const gap = Math.min(...crown.map(b => Math.hypot(center+x-b.x,(y-b.y)*1.12)-b.size*.36));
+      if (gap > widest) { widest=gap; best=[center+x,y]; }
+    }
+    if (best) place(...best);
+  }
+}
+
 function regenerate(seed) {
   const random = rng(seed);
   const rows = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 15];
@@ -376,6 +412,7 @@ function regenerate(seed) {
     }
   });
   buildLoopLayers(seed);
+  buildCrown(seed);
 }
 
 function spreadRow(items, target) {
@@ -394,6 +431,11 @@ function spreadRow(items, target) {
 }
 
 function activeButterflies() {
+  if (arrangement === 2) {
+    const count = Number($('density').value);
+    return crown.filter((b,i) => !b.deleted && (i<count || b.pinned))
+      .concat(ornaments.filter(b => b.pinned && !b.deleted && b.row === undefined));
+  }
   const density = Number($('density').value) / 108;
   if (arrangement === 1) {
     const active = new Set();
@@ -440,6 +482,13 @@ function paintButterfly(g, b) {
   g.save();
   g.translate(b.x, b.y);
   g.rotate(b.angle);
+  const now = performance.now();
+  if (b === selected && now < flutterUntil && !reducedMotion.matches)
+    g.scale(1-.27*Math.pow(Math.sin((flutterUntil-now)/420*Math.PI*2),2),1);
+  if (lit && !reducedMotion.matches && now-lightStart < 1550) {
+    const distance = Math.abs(b.y-(400-(now-lightStart)*.22));
+    if (distance < 36) halo(g,0,0,s*.85,paletteColors().pale[1],.55*(1-distance/36));
+  }
   if (style === 0) g.scale(b.mirror, 1);
   g.globalAlpha = b.opacity * (lit ? 1 : .93);
   g.drawImage(sprite, -s * .67, -s * .64, s * 1.34, s * 1.28);
@@ -637,6 +686,10 @@ function paintBase(g, includeSelection) {
   const active = activeButterflies();
   active.forEach(b => paintButterfly(g, b));
   drawTopper(g);
+  if (lit && !reducedMotion.matches) {
+    const pulse = 1-Math.abs(performance.now()-lightStart-1450)/240;
+    if (pulse > 0) sparkle(g,center,87,17+20*pulse,'#ffffff',pulse);
+  }
   if (lit) heading(g);
   if (includeSelection && selected) {
     const s = butterflySize(selected);
@@ -684,6 +737,7 @@ function paintEffects(g, time) {
       }
       return;
     }
+    if (arrangement === 2) g.globalAlpha = .20;
     for (let strand = 0; strand < 4; strand++) {
       g.beginPath();
       g.strokeStyle = alpha(strand === 0 ? colors.pale[1] : colors.accent,
@@ -743,16 +797,18 @@ function redraw() {
 
 function redrawEffects() {
   fx.clearRect(0, 0, width, height);
+  fx.save();
   paintEffects(fx, phase);
+  fx.restore();
 }
 
 function animate(now) {
   frame = 0;
   const animateBackground = backgroundStyle === 1 && stardustGif.complete && stardustGif.naturalWidth;
-  if ((!lit && !animateBackground) || reducedMotion.matches || document.hidden) return;
+  if ((!lit && !animateBackground && lastFrame >= flutterUntil) || reducedMotion.matches || document.hidden) return;
   if (now - lastFrame > 32) {
     phase = now / 1000;
-    if (animateBackground) paintBase(ctx, true);
+    if (animateBackground || lastFrame < flutterUntil || (lit && lastFrame-lightStart < 1710)) paintBase(ctx, true);
     redrawEffects();
     lastFrame = now;
   }
@@ -763,7 +819,7 @@ function syncAnimation() {
   if (frame) cancelAnimationFrame(frame);
   frame = 0;
   const animateBackground = backgroundStyle === 1 && stardustGif.complete && stardustGif.naturalWidth;
-  if ((lit || animateBackground) && !reducedMotion.matches && !document.hidden) frame = requestAnimationFrame(animate);
+  if ((lit || animateBackground || performance.now()<flutterUntil) && !reducedMotion.matches && !document.hidden) frame = requestAnimationFrame(animate);
 }
 
 function resize() {
@@ -829,6 +885,8 @@ function start(event) {
     canvas.focus({ preventScroll: true });
     event.preventDefault();
     selected = ornament;
+    flutterUntil = performance.now()+420;
+    syncAnimation();
     updateHint();
     redraw();
   }
@@ -900,6 +958,7 @@ function choices(id, labels, current, callback, colors) {
 
 function setLit(value) {
   lit = value;
+  if (value) lightStart = performance.now();
   selected = null;
   canvas.style.cursor = value ? 'default' : 'crosshair';
   $('edit-panel').hidden = value;
@@ -1104,7 +1163,7 @@ canvas.addEventListener('keydown', function (event) {
 $('remove').addEventListener('click', erase);
 $('deselect').addEventListener('click', deselect);
 $('reset').addEventListener('click', function () {
-  if (ornaments.concat(loopButterflies, fillButterflies, gapButterflies).some(b => b.pinned || b.deleted) &&
+  if (ornaments.concat(crown, loopButterflies, fillButterflies, gapButterflies).some(b => b.pinned || b.deleted) &&
       !confirm('重新生成会清除手动移动、添加和删除，继续吗？')) return;
   regenerate(Date.now() >>> 0);
   updateHint('已重新生成 · 拖动或点空白继续装饰');
