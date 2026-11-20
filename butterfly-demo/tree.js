@@ -15,7 +15,6 @@ const customPalette = { name: '自选', rich: ['#4a9bff', '#80c7ff'], pale: ['#d
 const allPalettes = palettes.concat(customPalette);
 const customPaletteIndex = palettes.length;
 const styles = ['侧光蝶影', '冰晶蝶翼', '幻彩蝶翼'];
-const arrangementNames = ['蝶群成树', '主蝶盘旋'];
 const butterflyColors = ['主色', '浅色', '双色'];
 const effectNames = ['星尘', '光斑', '流光', '极光'];
 const topperNames = ['金辉五角', '冰晶八芒', '银雪星芒'];
@@ -31,19 +30,16 @@ let backgroundStyle = 0;
 let effect = 2;
 let topper = 2;
 let butterflyStyle = 2;
-let arrangement = 1;
 let newColor = 0;
 let newOpacity = .90;
 let lit = false;
 let selected = null;
 let gesture = null;
 let ornaments = [];
-let spiralAccents = [];
 let sprites = [];
 let frame = 0;
 let lastFrame = 0;
 let phase = 0;
-let heroEpoch = performance.now() / 1000;
 let resolution = 1;
 const stardustGif = new Image();
 stardustGif.onload = function () {
@@ -293,7 +289,6 @@ function regenerate(seed) {
   const top = 124;
   const rowGap = 20;
   ornaments = [];
-  spiralAccents = [];
   selected = null;
   rows.forEach(function (count, row) {
     const half = 8 + row * 10.35;
@@ -303,7 +298,7 @@ function regenerate(seed) {
       const pairIndex = Math.min(column, count - 1 - column);
       const pairRandom = rng((seed + row * 7919 + pairIndex * 104729) >>> 0);
       const side = Math.sign(offset);
-      const size = 18.2 + random() * 1.8;
+      const size = 16.5 + row * .42 + (Math.round(centerDistance) % 3) * 1.05 + random() * 3.3;
       const yOffset = (row % 2 ? 2.2 : -1.2) + (random() - .5) * 2.6;
       const angle = side * (.035 + random() * .15) + (random() - .5) * .10;
       const rowShift = row % 2 ? 3 : -2;
@@ -315,24 +310,6 @@ function regenerate(seed) {
       ornaments.push(b);
     }
   });
-  // A tidy, evenly sized supporting constellation for the ascending hero.
-  const accentRows = 12;
-  for (let row = 0; row < accentRows; row++) {
-    const y = 150 + row * 20.2;
-    const reach = 15 + row * 8.1;
-    [-1, 0, 1].forEach(function (side, column) {
-      const pairRandom = rng((seed + 0x5f3759df + row * 7919 + column * 104729) >>> 0);
-      const middleOffset = row % 2 ? -11 : 11;
-      const x = side === 0 ? center + middleOffset : center + side * reach;
-      const b = butterfly(x + (random() - .5) * 3.2,
-        y + (random() - .5) * 4.5, 14.1 + random() * 1.1, pairRandom, row, column,
-        side * (.025 + random() * .065), side);
-      b.tone = (row + column * .5) % 1;
-      b.color = (row + column) % 2;
-      spiralAccents.push(b);
-    });
-  }
-  heroEpoch = performance.now() / 1000;
 }
 
 function spreadRow(items, target) {
@@ -352,19 +329,6 @@ function spreadRow(items, target) {
 
 function activeButterflies() {
   const density = Number($('density').value) / 108;
-  if (arrangement === 1) {
-    const active = new Set(ornaments.filter(b => !b.deleted && b.pinned && b.row === undefined));
-    const rows = new Map();
-    spiralAccents.forEach(b => {
-      if (b.deleted || b.pinned) { if (!b.deleted) active.add(b); return; }
-      if (!rows.has(b.row)) rows.set(b.row, []);
-      rows.get(b.row).push(b);
-    });
-    const orderedRows = Array.from(rows.entries()).sort((a, b) => a[0] - b[0]);
-    const pickedRows = spreadRow(orderedRows, Math.max(1, Math.round(orderedRows.length * density)));
-    pickedRows.forEach(entry => entry[1].forEach(b => active.add(b)));
-    return spiralAccents.concat(ornaments).filter(b => !b.deleted && active.has(b));
-  }
   const rows = new Map();
   const active = new Set(ornaments.filter(b => !b.deleted && b.pinned));
   ornaments.forEach(function (b) {
@@ -381,28 +345,6 @@ function activeButterflies() {
 }
 
 function butterflySize(b) { return b.size * Number($('size').value) / 100; }
-
-function heroPoint(progress) {
-  const t = clamp(progress, 0, 1);
-  const angle = t * Math.PI * 4.35 - Math.PI / 2;
-  const radius = 7 + (1 - t) * 112;
-  return { x: center + Math.cos(angle) * radius, y: 382 - t * 267 + Math.sin(angle) * radius * .10 };
-}
-
-function heroProgress(time) {
-  if (reducedMotion.matches) return .56;
-  return ((time - heroEpoch) / 9.2 % 1 + 1) % 1;
-}
-
-function paintHero(g, time) {
-  if (arrangement !== 1) return;
-  const t = heroProgress(time);
-  const p = heroPoint(t);
-  const next = heroPoint(Math.min(1, t + .004));
-  const b = { x:p.x, y:p.y, size:34.5, angle:Math.atan2(next.y-p.y, next.x-p.x)-Math.PI/2,
-    tone:.12, color:0, mirror:1, opacity:.98, customColor:2 };
-  paintButterfly(g, b);
-}
 
 function paintButterfly(g, b) {
   const rich = b.tone < Number($('rich').value) / 100;
@@ -584,7 +526,6 @@ function paintBase(g, includeSelection) {
   background(g);
   const active = activeButterflies();
   active.forEach(b => paintButterfly(g, b));
-  paintHero(g, phase);
   drawTopper(g);
   if (lit) heading(g);
   if (includeSelection && selected) {
@@ -620,36 +561,6 @@ function paintEffects(g, time) {
     return;
   }
   if (effect === 2) {
-    if (arrangement === 1) {
-      g.save();
-      for (let strand = 0; strand < 3; strand++) {
-        g.beginPath();
-        g.strokeStyle = alpha(strand === 1 ? colors.accent : colors.pale[1], strength * (strand === 1 ? .19 : .34));
-        g.lineWidth = strand === 1 ? 4 : .85;
-        for (let i = 0; i <= 120; i++) {
-          const t = i / 120;
-          const p = heroPoint(t);
-          const tangent = heroPoint(Math.min(1, t + .003));
-          const dx = tangent.x - p.x, dy = tangent.y - p.y;
-          const length = Math.hypot(dx,dy) || 1;
-          const offset = strand === 0 ? -2 : strand === 2 ? 2 : 0;
-          const x = p.x + (-dy / length) * offset;
-          const y = p.y + (dx / length) * offset;
-          if (i === 0) g.moveTo(x,y); else g.lineTo(x,y);
-        }
-        g.stroke();
-      }
-      const t = (heroProgress(time) + .57) % 1;
-      const glint = heroPoint(t);
-      halo(g, glint.x, glint.y, 16, colors.pale[1], .54 * strength);
-      sparkle(g, glint.x, glint.y, 3.5, '#ffffff', .94 * strength);
-      g.restore();
-      for (let i = 0; i < 13; i++) {
-        const p = stardust[i * 7];
-        sparkle(g, p.x, p.y, 1.5 + p.r * 1.5, colors.pale[1], (.24 + .2 * Math.sin(p.phase + time)) * strength);
-      }
-      return;
-    }
     for (let strand = 0; strand < 4; strand++) {
       g.beginPath();
       g.strokeStyle = alpha(strand === 0 ? colors.pale[1] : colors.accent,
@@ -715,11 +626,10 @@ function redrawEffects() {
 function animate(now) {
   frame = 0;
   const animateBackground = backgroundStyle === 1 && stardustGif.complete && stardustGif.naturalWidth;
-  const animateHero = arrangement === 1;
-  if ((!lit && !animateBackground && !animateHero) || reducedMotion.matches || document.hidden) return;
+  if ((!lit && !animateBackground) || reducedMotion.matches || document.hidden) return;
   if (now - lastFrame > 32) {
     phase = now / 1000;
-    if (animateBackground || animateHero) paintBase(ctx, true);
+    if (animateBackground) paintBase(ctx, true);
     redrawEffects();
     lastFrame = now;
   }
@@ -730,7 +640,7 @@ function syncAnimation() {
   if (frame) cancelAnimationFrame(frame);
   frame = 0;
   const animateBackground = backgroundStyle === 1 && stardustGif.complete && stardustGif.naturalWidth;
-  if ((lit || animateBackground || arrangement === 1) && !reducedMotion.matches && !document.hidden) frame = requestAnimationFrame(animate);
+  if ((lit || animateBackground) && !reducedMotion.matches && !document.hidden) frame = requestAnimationFrame(animate);
 }
 
 function resize() {
@@ -990,12 +900,6 @@ choices('background-choices', backgroundNames, backgroundStyle, function (index)
 choices('styles', styles, butterflyStyle, index => {
   butterflyStyle = index;
   syncButterflyTools();
-});
-choices('arrangements', arrangementNames, arrangement, index => {
-  arrangement = index;
-  heroEpoch = performance.now() / 1000;
-  syncAnimation();
-  updateHint(index === 1 ? '主蝶沿螺旋轨迹上升 · 小蝶可拖动调整' : '拖动蝴蝶调整位置 · 点空白添加');
 });
 choices('single-styles', styles, butterflyStyle, index => {
   if (!selected) return;
