@@ -15,6 +15,7 @@ const customPalette = { name: '自选', rich: ['#4a9bff', '#80c7ff'], pale: ['#d
 const allPalettes = palettes.concat(customPalette);
 const customPaletteIndex = palettes.length;
 const styles = ['侧光蝶影', '冰晶蝶翼', '幻彩蝶翼'];
+const layoutNames = ['错落蝶群', '绕线蝶树'];
 const butterflyColors = ['主色', '浅色', '双色'];
 const effectNames = ['星尘', '光斑', '流光', '极光'];
 const topperNames = ['金辉五角', '冰晶八芒', '银雪星芒'];
@@ -30,12 +31,16 @@ let backgroundStyle = 0;
 let effect = 2;
 let topper = 2;
 let butterflyStyle = 2;
+let arrangement = 1;
 let newColor = 0;
 let newOpacity = .90;
 let lit = false;
 let selected = null;
 let gesture = null;
 let ornaments = [];
+let loopButterflies = [];
+let fillButterflies = [];
+let gapButterflies = [];
 let sprites = [];
 let frame = 0;
 let lastFrame = 0;
@@ -283,6 +288,66 @@ function butterfly(x, y, size, random, row, column, angle, side) {
     mirror: side < 0 ? -1 : 1, opacity: .76 + random() * .18, pinned: false, deleted: false };
 }
 
+function helixPoint(t) {
+  const a = t * 21 + .8;
+  return { x: center + Math.sin(a) * (7 + t * 154),
+    y: 111 + t * 266 - Math.cos(a) * (1 + t * 22) };
+}
+
+function buildLoopLayers(seed) {
+  const random = rng((seed + 0x61c88647) >>> 0);
+  loopButterflies = [];
+  fillButterflies = [];
+  gapButterflies = [];
+  const mainCount = 16;
+  for (let i = 0; i < mainCount; i++) {
+    const t = 1 - i / (mainCount - 1);
+    const p = helixPoint(t);
+    const next = helixPoint(Math.max(0, t - .004));
+    const angle = Math.atan2(next.y - p.y, next.x - p.x) + Math.PI / 2;
+    const b = butterfly(p.x + (random() - .5) * 3.5, p.y + (random() - .5) * 3.5,
+      21.5 + random() * 4.5, random, -1, i, angle, Math.sin(t * 21 + .8));
+    b.tone = .06;
+    b.color = 0;
+    b.opacity = .92 + random() * .07;
+    loopButterflies.push(b);
+  }
+
+  const fillCounts = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 5, 5, 6, 6];
+  fillCounts.forEach(function (count, row) {
+    const y = 139 + row * 16.1;
+    const half = 10 + row * 9.2;
+    for (let column = 0; column < count; column++) {
+      const rowStagger = row % 2 ? 4 : -4;
+      const x = count === 1 ? center + rowStagger + (random() - .5) * 9 :
+        center + (column / (count - 1) * 2 - 1) * half + rowStagger + (random() - .5) * 11;
+      const b = butterfly(x, y + (random() - .5) * 8, 15.5 + random() * 4,
+        random, row, column, (random() - .5) * .28, Math.sign(x - center));
+      b.tone = .98;
+      b.color = 0;
+      b.opacity = .82 + random() * .14;
+      fillButterflies.push(b);
+    }
+  });
+
+  const gapCounts = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 7, 8];
+  gapCounts.forEach(function (count, row) {
+    const y = 147 + row * 16.1;
+    const half = 15 + row * 9.1;
+    for (let column = 0; column < count; column++) {
+      const rowStagger = row % 2 ? -3.5 : 3.5;
+      const x = count === 1 ? center + rowStagger + (random() - .5) * 16 :
+        center + (column / (count - 1) * 2 - 1) * half + rowStagger + (random() - .5) * 13;
+      const b = butterfly(x, y + (random() - .5) * 7, 10.5 + random() * 3,
+        random, row, column, (random() - .5) * .32, Math.sign(x - center));
+      b.tone = .99;
+      b.color = 1;
+      b.opacity = .72 + random() * .18;
+      gapButterflies.push(b);
+    }
+  });
+}
+
 function regenerate(seed) {
   const random = rng(seed);
   const rows = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 15];
@@ -310,6 +375,7 @@ function regenerate(seed) {
       ornaments.push(b);
     }
   });
+  buildLoopLayers(seed);
 }
 
 function spreadRow(items, target) {
@@ -329,6 +395,24 @@ function spreadRow(items, target) {
 
 function activeButterflies() {
   const density = Number($('density').value) / 108;
+  if (arrangement === 1) {
+    const active = new Set();
+    loopButterflies.concat(ornaments.filter(b => b.pinned && b.row === undefined)).forEach(b => {
+      if (!b.deleted) active.add(b);
+    });
+    [fillButterflies, gapButterflies].forEach(function (layer) {
+      const rows = new Map();
+      layer.forEach(b => {
+        if (b.deleted) return;
+        if (b.pinned) { active.add(b); return; }
+        if (!rows.has(b.row)) rows.set(b.row, []);
+        rows.get(b.row).push(b);
+      });
+      rows.forEach(row => spreadRow(row, Math.max(1, Math.round(row.length * density))).forEach(b => active.add(b)));
+    });
+    return loopButterflies.concat(fillButterflies, gapButterflies,
+      ornaments.filter(b => b.pinned && b.row === undefined)).filter(b => !b.deleted && active.has(b));
+  }
   const rows = new Map();
   const active = new Set(ornaments.filter(b => !b.deleted && b.pinned));
   ornaments.forEach(function (b) {
@@ -510,6 +594,31 @@ function drawTopper(g) {
   g.restore();
 }
 
+function drawHelixGuide(g) {
+  const colors = paletteColors();
+  g.save();
+  for (let strand = 0; strand < 3; strand++) {
+    g.beginPath();
+    g.strokeStyle = alpha(strand === 1 ? colors.accent : colors.pale[1], strand === 1 ? .30 : .52);
+    g.lineWidth = strand === 1 ? 2.5 : .8;
+    g.shadowColor = colors.accent;
+    g.shadowBlur = strand === 1 ? 8 : 3;
+    for (let i = 0; i <= 120; i++) {
+      const t = i / 120;
+      const p = helixPoint(t);
+      const dx = Math.cos(t * 21 + .8) * 21 * (7 + t * 154) + Math.sin(t * 21 + .8) * 154;
+      const dy = 266 + Math.sin(t * 21 + .8) * 21 * (1 + t * 22) - Math.cos(t * 21 + .8) * 22;
+      const length = Math.hypot(dx, dy) || 1;
+      const offset = strand - 1;
+      const x = p.x - dy / length * offset * 1.5;
+      const y = p.y + dx / length * offset * 1.5;
+      if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+    }
+    g.stroke();
+  }
+  g.restore();
+}
+
 function heading(g) {
   g.textAlign = 'center';
   g.fillStyle = paletteColors().pale[1];
@@ -524,6 +633,7 @@ function heading(g) {
 
 function paintBase(g, includeSelection) {
   background(g);
+  if (arrangement === 1) drawHelixGuide(g);
   const active = activeButterflies();
   active.forEach(b => paintButterfly(g, b));
   drawTopper(g);
@@ -561,6 +671,19 @@ function paintEffects(g, time) {
     return;
   }
   if (effect === 2) {
+    if (arrangement === 1) {
+      for (let i = 0; i < 9; i++) {
+        const t = (i / 9 + time * .10) % 1;
+        const p = helixPoint(t);
+        halo(g, p.x, p.y, 10, colors.pale[1], .46 * strength);
+        sparkle(g, p.x, p.y, 2 + t * 2.5, '#ffffff', .94 * strength);
+      }
+      for (let i = 0; i < 15; i++) {
+        const p = stardust[i * 5];
+        sparkle(g, p.x, p.y, 1.6 + p.r * 1.4, colors.pale[1], (.34 + .2 * Math.sin(p.phase + time)) * strength);
+      }
+      return;
+    }
     for (let strand = 0; strand < 4; strand++) {
       g.beginPath();
       g.strokeStyle = alpha(strand === 0 ? colors.pale[1] : colors.accent,
@@ -901,6 +1024,11 @@ choices('styles', styles, butterflyStyle, index => {
   butterflyStyle = index;
   syncButterflyTools();
 });
+choices('layouts', layoutNames, arrangement, index => {
+  arrangement = index;
+  selected = null;
+  updateHint(index === 1 ? '大蝶沿光带绕树上行 · 中蝶铺开树冠 · 小蝶填空隙' : '拖动蝴蝶调整位置 · 点空白添加');
+});
 choices('single-styles', styles, butterflyStyle, index => {
   if (!selected) return;
   selected.customStyle = index;
@@ -976,7 +1104,8 @@ canvas.addEventListener('keydown', function (event) {
 $('remove').addEventListener('click', erase);
 $('deselect').addEventListener('click', deselect);
 $('reset').addEventListener('click', function () {
-  if (ornaments.some(b => b.pinned || b.deleted) && !confirm('重新生成会清除手动移动、添加和删除，继续吗？')) return;
+  if (ornaments.concat(loopButterflies, fillButterflies, gapButterflies).some(b => b.pinned || b.deleted) &&
+      !confirm('重新生成会清除手动移动、添加和删除，继续吗？')) return;
   regenerate(Date.now() >>> 0);
   updateHint('已重新生成 · 拖动或点空白继续装饰');
   redraw();
@@ -994,5 +1123,6 @@ regenerate(121625);
 buildSprites();
 updateColorSwatches();
 syncButterflyTools();
+updateHint();
 resize();
 syncAnimation();

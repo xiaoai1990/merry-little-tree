@@ -81,7 +81,7 @@ fieldset{margin-bottom:18px}legend{font-size:13px}.choices button{min-height:39p
 <canvas id="scene" tabindex="0" aria-label="蝴蝶树" aria-describedby="hint">需要支持 Canvas 的浏览器。</canvas>
 <canvas id="effects" aria-hidden="true"></canvas>
 </div>
-<div class="hintbar"><span id="hint" role="status">拖动蝴蝶调整位置 · 点空白添加</span><button id="remove" type="button" disabled>删除选中</button></div>
+<div class="hintbar"><span id="hint" role="status">大蝶绕光带上行 · 中蝶铺开树冠 · 小蝶填空隙</span><button id="remove" type="button" disabled>删除选中</button></div>
 </section>
 <section class="panel" id="edit-panel" aria-label="树饰设置">
 <fieldset><legend>蝴蝶配色</legend><div class="choices" id="palettes"></div>
@@ -98,6 +98,7 @@ fieldset{margin-bottom:18px}legend{font-size:13px}.choices button{min-height:39p
 <label for="size">大小 <output id="size-out">100%</output><input id="size" type="range" min="65" max="140" value="100"></label>
 </div>
 <fieldset><legend>蝶形样式</legend><div class="choices three" id="styles"></div></fieldset>
+<fieldset><legend>蝴蝶排布</legend><div class="choices three" id="layouts"></div></fieldset>
 <div class="butterfly-tools">
 <div class="tool-heading"><p id="tool-title" class="tool-title">新蝴蝶</p><button id="deselect" type="button" hidden>取消选择</button></div>
 <fieldset id="single-style" hidden><legend>当前蝶形</legend><div class="choices three" id="single-styles"></div></fieldset>
