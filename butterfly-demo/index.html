@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>蝶光圣诞树</title>
+<style>
+:root{color-scheme:dark;--ink:#f6f1e8;--muted:#a99f9b;--line:#403833;--surface:#171311;--accent:#d9c08a;--wash:#35291e}
+*{box-sizing:border-box}
+body{margin:0;background:#080706;color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft Yahei",sans-serif}
+button,input{font:inherit}
+button{cursor:pointer}
+button:focus-visible,input:focus-visible,canvas:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+[hidden]{display:none!important}
+main{width:100%;max-width:460px;margin:auto;min-height:100vh;background:#0e0c0b}
+header{height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;border-bottom:1px solid #302824;background:#100e0d}
+h1{font-family:"Songti SC",serif;font-size:19px;letter-spacing:.08em;font-weight:600;margin:0;color:#f4ead8}
+.steps{display:flex;align-items:center;color:var(--muted);font-size:12px;white-space:nowrap}
+.steps span+span{margin-left:11px}
+.steps [aria-current]{color:#e7cb91}
+.stage{position:relative;overflow:hidden;background:#050505}
+#scene{display:block;width:100%;touch-action:none;cursor:crosshair}
+#effects{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+.hintbar{min-height:38px;padding:0 16px;display:flex;align-items:center;justify-content:space-between;color:#b8aaa0;font-size:11px;border-top:1px solid #342c26;border-bottom:1px solid #342c26;background:#110e0c}
+.hintbar button{border:0;background:none;color:#e1c68d;padding:10px 0 10px 10px;font-size:11px;white-space:nowrap}
+.hintbar button:disabled{color:#8692aa;opacity:.65;cursor:default}
+.panel{padding:15px 16px 18px;background:#171311}
+fieldset{margin:0 0 15px;padding:0;border:0;min-width:0}
+legend{font-weight:650;padding:0;margin-bottom:8px;font-size:12px;letter-spacing:.04em;color:#ead7b6}
+.choices{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-gap:5px}
+#palettes{grid-template-columns:repeat(3,minmax(0,1fr))}
+#background-choices{grid-template-columns:repeat(2,minmax(0,1fr))}
+.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.color-pickers{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:9px 0 5px}
+.color-pickers label{min-height:39px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 8px;border:1px solid #443a33;background:#201b18;color:#d1c6ba;font-size:11px}
+.color-pickers input[type=color]{width:36px;height:28px;padding:2px;border:1px solid #675b50;background:#171311;cursor:pointer}
+.palette-note{margin:3px 0 0;color:#a99f9b;font-size:10px;line-height:1.4}
+.butterfly-tools{padding:11px 12px 12px;border:1px solid #514237;border-radius:4px;margin-bottom:15px;background:#1c1713}
+.butterfly-tools fieldset{margin-bottom:9px}
+.butterfly-tools legend{font-size:11px}
+.butterfly-tools label{font-size:11px;color:var(--muted);display:block}
+.butterfly-tools output{float:right}
+.tool-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.tool-title{font-size:12px;font-weight:650;margin:0;color:#e5c88e}
+#deselect{background:transparent;border:0;color:var(--muted);font-size:11px;padding:4px 3px}
+.choices button{min-height:36px;min-width:0;padding:4px 1px;border-radius:3px;background:#201b18;color:#c9bfb5;border:1px solid #443a33;font-size:11px;white-space:nowrap;transition:background .16s,border-color .16s,color .16s}
+.choices button[aria-pressed=true]{border-color:#d1b77f;background:#35291e;color:#fff6e6;box-shadow:inset 0 -2px #c6a66a}
+#palettes button{min-height:48px}
+.swatch{display:block;width:26px;height:8px;border-radius:1px;margin:1px auto 4px;border:1px solid #ffffff38}
+.sliders{display:grid;grid-template-columns:1.12fr 1fr 1fr;grid-gap:10px;margin:0 0 17px}
+.sliders label{font-weight:600;display:block;font-size:11px}
+.sliders output{float:right;font-weight:400;color:var(--muted);font-variant-numeric:tabular-nums}
+input[type=range]{display:block;height:24px;margin:1px 0 0;width:100%;accent-color:#d9bd82}
+.actions{display:flex;align-items:stretch}
+.actions button,.return{min-height:41px;border:1px solid #665644;border-radius:3px;background:none;color:var(--ink);padding:0 11px;font-size:12px}
+.actions .primary{flex:1;margin-left:8px;border-color:transparent;background:linear-gradient(110deg,#e5d4ad,#c4a56c);color:#23190f;font-weight:750}
+#card-panel .actions{margin-top:10px}
+#card-panel label{display:block;color:var(--muted);margin-bottom:6px;font-size:12px}
+#name{width:100%;height:40px;border-radius:3px;border:1px solid #665644;background:#100e0d;color:var(--ink);padding:0 10px}
+#result{font-size:12px;color:var(--muted);margin:10px 0 0}
+#result:empty{display:none}
+@media(max-width:350px){.panel{padding-left:10px;padding-right:10px}.choices button{font-size:10px}header{padding:0 12px}}
+@media(min-width:800px){
+body{padding:30px 26px}main{border:1px solid #40352b;border-radius:3px;max-width:1060px;min-height:0;overflow:hidden;box-shadow:0 24px 80px #0009}
+header{padding:0 25px;height:64px}.workspace{display:grid;grid-template-columns:minmax(440px,1.25fr) minmax(370px,1fr)}
+.panel{padding:23px 25px;border-left:1px solid #40352b}
+fieldset{margin-bottom:18px}legend{font-size:13px}.choices button{min-height:39px}.sliders{margin-bottom:18px}
+}
+</style>
+<script defer src="./tree.js"></script>
+</head>
+<body>
+<main>
+<header>
+<h1>蝶光圣诞树</h1>
+<div class="steps" aria-label="制作步骤"><span id="step-edit" aria-current="step">装饰</span><span aria-hidden="true">›</span><span id="step-card">点亮贺卡</span></div>
+</header>
+<div class="workspace">
+<section aria-label="蝴蝶树画布">
+<div class="stage">
+<canvas id="scene" tabindex="0" aria-label="蝴蝶树" aria-describedby="hint">需要支持 Canvas 的浏览器。</canvas>
+<canvas id="effects" aria-hidden="true"></canvas>
+</div>
+<div class="hintbar"><span id="hint" role="status">拖动蝴蝶调整位置 · 点空白添加</span><button id="remove" type="button" disabled>删除选中</button></div>
+</section>
+<section class="panel" id="edit-panel" aria-label="树饰设置">
+<fieldset><legend>蝴蝶配色</legend><div class="choices" id="palettes"></div>
+<div class="color-pickers">
+<label for="rich-color"><span>主色</span><input id="rich-color" type="color" value="#4a9bff" aria-label="自选蝴蝶主色"></label>
+<label for="pale-color"><span>浅色</span><input id="pale-color" type="color" value="#d4f7ff" aria-label="自选蝴蝶浅色"></label>
+</div>
+<p class="palette-note">主色比例控制蝶色分布；手动添蝶可单独选主色、浅色或双色。</p>
+</fieldset>
+<fieldset><legend>背景</legend><div class="choices" id="background-choices"></div></fieldset>
+<div class="sliders">
+<label for="rich">主色比例 <output id="rich-out">52%</output><input id="rich" type="range" min="0" max="100" value="52"></label>
+<label for="density">密度 <output id="density-out">61</output><input id="density" type="range" min="28" max="108" value="61"></label>
+<label for="size">大小 <output id="size-out">100%</output><input id="size" type="range" min="65" max="140" value="100"></label>
+</div>
+<fieldset><legend>蝶形样式</legend><div class="choices three" id="styles"></div></fieldset>
+<fieldset><legend>蝴蝶构图</legend><div class="choices three" id="arrangements"></div></fieldset>
+<div class="butterfly-tools">
+<div class="tool-heading"><p id="tool-title" class="tool-title">新蝴蝶</p><button id="deselect" type="button" hidden>取消选择</button></div>
+<fieldset id="single-style" hidden><legend>当前蝶形</legend><div class="choices three" id="single-styles"></div></fieldset>
+<fieldset><legend>蝴蝶颜色</legend><div class="choices three" id="butterfly-colors"></div></fieldset>
+<label for="opacity">蝴蝶浓淡 <output id="opacity-out">90%</output><input id="opacity" type="range" min="25" max="100" value="90"></label>
+</div>
+<fieldset><legend>树周闪光</legend><div class="choices" id="effects-choices"></div></fieldset>
+<fieldset><legend>顶部星形</legend><div class="choices" id="topper-choices"></div></fieldset>
+<div class="actions"><button id="reset" type="button">重新生成</button><button class="primary" id="light" type="button">点亮圣诞树</button></div>
+</section>
+<section class="panel" id="card-panel" aria-label="贺卡设置" hidden>
+<label for="name">收卡人名字</label>
+<input id="name" type="text" maxlength="24" placeholder="输入名字，写在贺卡上">
+<div class="actions"><button id="back" type="button">继续装饰</button><button class="primary" id="export" type="button">保存分享卡</button></div>
+<p id="result" role="status"></p>
+</section>
+</div>
+</main>
+</body>
+</html>
