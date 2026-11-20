@@ -298,11 +298,11 @@ function regenerate(seed) {
       const pairIndex = Math.min(column, count - 1 - column);
       const pairRandom = rng((seed + row * 7919 + pairIndex * 104729) >>> 0);
       const side = Math.sign(offset);
-      const size = 16.5 + row * .42 + (Math.round(centerDistance) % 3) * 1.05 + random() * 3.3;
-      const yOffset = (row % 2 ? 2.2 : -1.2) + (random() - .5) * 2.6;
-      const angle = side * (.035 + random() * .15) + (random() - .5) * .10;
-      const rowShift = row % 2 ? 3 : -2;
-      const xJitter = (random() - .5) * 4.4;
+      const size = 17 + row * .30 + (Math.round(centerDistance) % 3) * .8 + random() * 4.6;
+      const yOffset = (row % 2 ? 3.2 : -1.8) + (random() - .5) * 4.8;
+      const angle = side * (.025 + random() * .18) + (random() - .5) * .14;
+      const rowShift = row % 2 ? 3.2 : -2.2;
+      const xJitter = (random() - .5) * 9.2;
       const b = butterfly(center + offset + rowShift + xJitter, top + row * rowGap + yOffset,
         size, pairRandom, row, column, angle, side);
       b.tone = (row * .37 + pairIndex * .61803398875) % 1;
