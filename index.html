@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#081426" />
+  <meta name="description" content="给自己或朋友装饰一棵圣诞树，点亮后生成一张冬日贺卡，并用链接分享同一棵树。" />
+  <meta property="og:title" content="圣诞树装饰间 · Merry Little Tree" />
+  <meta property="og:description" content="挂上喜欢的装饰，写下名字，点亮属于你的圣诞树。" />
+  <meta property="og:type" content="website" />
+  <title>圣诞树装饰间 · Merry Little Tree</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230b1a2e'/%3E%3Cpath d='M32 10l5.1 15.9H53l-12.8 9.3 4.9 15.1L32 41l-13.1 9.3 4.9-15.1L11 25.9h15.9z' fill='%23f4ce86'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="./assets/style.css" />
+</head>
+<body>
+  <main class="app" id="app">
+    <canvas id="scene" aria-hidden="true"></canvas>
+    <div class="scene-shade" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-star" aria-hidden="true">✦</span>
+        <span class="brand-name">MERRY LITTLE TREE</span>
+      </div>
+      <div class="top-actions">
+        <button class="icon-btn" id="undoBtn" type="button" aria-label="撤销上一步" disabled>↶</button>
+        <button class="soft-btn" id="randomBtn" type="button">帮我布置</button>
+      </div>
+    </header>
+
+    <div class="hint" id="hint">点下面的挂饰，把它们挂到树上</div>
+
+    <div class="received" id="received" hidden>
+      <div class="received-copy">
+        <span class="received-kicker">A TREE FOR YOU</span>
+        <strong id="receivedText">你收到了一棵圣诞树</strong>
+      </div>
+      <button class="received-btn" id="resetReceived" type="button">我也要装饰</button>
+    </div>
+
+    <section class="dedication" id="dedication">
+      <span class="to-label">TO</span>
+      <input id="nameInput" maxlength="12" placeholder="写下名字" autocomplete="off" aria-label="收件人名字" />
+      <span class="dedication-line" aria-hidden="true"></span>
+    </section>
+
+    <section class="tray">
+      <div class="tray-head">
+        <div class="tree-colors" id="treeColors" role="group" aria-label="选择树的颜色"></div>
+        <button class="text-btn" id="clearBtn" type="button">清空</button>
+      </div>
+
+      <div class="ornaments" id="ornamentTray" role="group" aria-label="选择挂饰"></div>
+
+      <button class="primary-action" id="lightBtn" type="button">
+        <span class="btn-spark" aria-hidden="true">✦</span>
+        <span id="lightBtnText">点亮圣诞树</span>
+      </button>
+      <p class="tray-note" id="trayNote">拖动树上的挂饰，可以重新摆放</p>
+    </section>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <div class="overlay" id="shareOverlay" hidden>
+      <div class="share-panel" role="dialog" aria-modal="true" aria-labelledby="shareTitle">
+        <div class="share-head">
+          <div>
+            <p class="eyebrow">YOUR WINTER POSTCARD</p>
+            <h2 id="shareTitle">你的圣诞树做好了</h2>
+          </div>
+          <button class="icon-btn close-btn" id="closeShareBtn" type="button" aria-label="关闭分享卡">×</button>
+        </div>
+
+        <div class="poster-shell">
+          <img id="posterImg" alt="你的圣诞树分享卡" />
+        </div>
+        <p class="poster-tip" id="posterTip">长按图片可以保存到相册</p>
+
+        <div class="share-actions">
+          <button class="secondary" id="saveBtn" type="button">保存图片</button>
+          <button class="primary" id="shareBtn" type="button">分享这棵树</button>
+        </div>
+
+        <button class="link-toggle" id="linkToggle" type="button">拿到装饰链接</button>
+        <div class="link-box" id="linkBox" hidden>
+          <input id="shareLinkInput" type="text" readonly aria-label="装饰链接" />
+          <p>长按链接复制，朋友打开会看到同一棵树</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="./assets/app.js"></script>
+</body>
+</html>
