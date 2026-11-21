@@ -19,7 +19,7 @@ const layoutNames = ['错落蝶群', '蝶翼圣诞树'];
 const butterflyColors = ['主色', '浅色', '双色'];
 const overlays = { sparkle: true, bokeh: false };
 const topperNames = ['金辉五角', '冰晶八芒', '银雪星芒'];
-const backgroundNames = ['深空微光', '银色星尘'];
+
 const canvas = $('scene');
 const ctx = canvas.getContext('2d');
 const layer = $('effects');
@@ -27,7 +27,7 @@ const fx = layer.getContext('2d');
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let palette = 0;
 let customPaletteUsed = false;
-let backgroundStyle = 0;
+
 let brushType = 0;
 const dedication = {x:center, y:height-16};
 let textDrag = null;
@@ -50,14 +50,11 @@ let frame = 0;
 let lastFrame = 0;
 let phase = 0;
 let resolution = 1;
-const stardustGif = new Image();
-stardustGif.onload = function () {
-  if (backgroundStyle === 1) {
-    redraw();
-    syncAnimation();
-  }
-};
-stardustGif.src = './assets/silver-stardust.gif';
+const starFrames = new Image();
+const silverRibbon = new Image();
+for (const image of [starFrames,silverRibbon]) image.onload = () => redraw();
+starFrames.src = fixedBackdrop.frames;
+silverRibbon.src = fixedBackdrop.silver;
 const wingImages = wingSources.map(source => {
   const img = new Image();
   img.onload = () => { buildSprites(); redraw(); };
@@ -409,7 +406,7 @@ function paintButterfly(g, b) {
     if (distance < 36) halo(g,0,0,s*.85,paletteColors().pale[1],.55*(1-distance/36));
   }
   if (style === 0) g.scale(b.mirror, 1);
-  g.globalAlpha = b.opacity * (lit ? 1 : .93);
+  g.globalAlpha = (b.opacityOverride ?? newOpacity) * b.opacity * (lit ? 1 : .93);
   g.drawImage(sprite, -s * .67, -s * .64, s * 1.34, s * 1.28);
   g.restore();
 }
@@ -432,16 +429,20 @@ function background(g) {
   g.scale(1, .16);
   halo(g, 0, 0, 129, colors.rich[0], lit ? .32 : .19);
   g.restore();
-  if (backgroundStyle === 1 && stardustGif.complete && stardustGif.naturalWidth) {
-    const scale = Math.max(width / stardustGif.naturalWidth, height / stardustGif.naturalHeight);
-    const imageWidth = stardustGif.naturalWidth * scale;
-    const imageHeight = stardustGif.naturalHeight * scale;
-    g.save();
-    g.globalCompositeOperation = 'screen';
-    g.globalAlpha = .82;
-    g.drawImage(stardustGif, (width - imageWidth) / 2, (height - imageHeight) / 2, imageWidth, imageHeight);
-    g.restore();
+  g.save();
+  g.globalCompositeOperation = 'screen';
+  if (starFrames.naturalWidth) {
+    const {ends,w,h,columns} = fixedBackdrop;
+    const clock = reducedMotion.matches ? 0 : phase*1000 % ends[ends.length-1];
+    const i = ends.findIndex(end => clock < end);
+    g.globalAlpha = .70;
+    g.drawImage(starFrames,(i%columns)*w,Math.floor(i/columns)*h,w,h,32,61,326,359);
   }
+  if (silverRibbon.naturalWidth) {
+    g.globalAlpha = .70;
+    g.drawImage(silverRibbon,49,103,292,289);
+  }
+  g.restore();
   stardust.forEach(function (p, i) {
     if (i % 3) circle(g, p.x, p.y, .36 + p.r * .7, alpha(colors.pale[i % 2], .13 + p.r * .31));
   });
@@ -562,30 +563,6 @@ function drawTopper(g) {
   g.restore();
 }
 
-function drawHelixGuide(g) {
-  g.save();
-  for (let strand = 0; strand < 3; strand++) {
-    g.beginPath();
-    g.strokeStyle = alpha(strand === 1 ? '#c5d7e8' : '#f1f7ff', strand === 1 ? .30 : .52);
-    g.lineWidth = strand === 1 ? 2.5 : .8;
-    g.shadowColor = '#c5d7e8';
-    g.shadowBlur = strand === 1 ? 8 : 3;
-    for (let i = 0; i <= 120; i++) {
-      const t = i / 120;
-      const p = helixPoint(t);
-      const dx = Math.cos(t * 21 + .8) * 21 * (7 + t * 154) + Math.sin(t * 21 + .8) * 154;
-      const dy = 266 + Math.sin(t * 21 + .8) * 21 * (1 + t * 22) - Math.cos(t * 21 + .8) * 22;
-      const length = Math.hypot(dx, dy) || 1;
-      const offset = strand - 1;
-      const x = p.x - dy / length * offset * 1.5;
-      const y = p.y + dx / length * offset * 1.5;
-      if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
-    }
-    g.stroke();
-  }
-  g.restore();
-}
-
 function heading(g) {
   g.textAlign = 'center';
   g.fillStyle = paletteColors().pale[1];
@@ -608,10 +585,7 @@ function paintBase(g, includeSelection) {
     else if(p.type===1) circle(g,p.x,p.y,p.r,'rgba(209,236,255,.8)');
     else sparkle(g,p.x,p.y,p.r,'#eff9ff',.92);
   }
-  g.save();
-  g.globalAlpha=.52;
-  drawHelixGuide(g);
-  g.restore();
+
   const active = activeButterflies();
   active.forEach(b => paintButterfly(g, b));
   drawTopper(g);
@@ -635,10 +609,6 @@ function paintBase(g, includeSelection) {
 function paintEffects(g, time) {
   const colors = paletteColors();
   const strength = lit ? 1 : .76;
-  for(let i=0;i<6;i++){
-    const t=(i/6+time*.055)%1, p=helixPoint(t);
-    sparkle(g,p.x,p.y,1.6+t*1.7,'#f1f7ff',.55*strength);
-  }
   stardust.forEach((p,i)=>{
     const pulse=(.76+.2*Math.sin(p.phase+time))*strength;
     if(overlays.sparkle && i%5===0) sparkle(g,p.x,p.y,1.4+p.r*3.1,colors.pale[i%2],pulse);
@@ -661,7 +631,7 @@ function redrawEffects() {
 
 function animate(now) {
   frame = 0;
-  const animateBackground = backgroundStyle === 1 && stardustGif.complete && stardustGif.naturalWidth;
+  const animateBackground = starFrames.naturalWidth;
   if (reducedMotion.matches || document.hidden) return;
   if (now - lastFrame > 32) {
     phase = now / 1000;
@@ -675,7 +645,7 @@ function animate(now) {
 function syncAnimation() {
   if (frame) cancelAnimationFrame(frame);
   frame = 0;
-  const animateBackground = backgroundStyle === 1 && stardustGif.complete && stardustGif.naturalWidth;
+  const animateBackground = starFrames.naturalWidth;
   if (!reducedMotion.matches && !document.hidden) frame = requestAnimationFrame(animate);
 }
 
@@ -787,7 +757,7 @@ function finish(event) {
   b.pinned = true;
   b.customColor = newColor;
   b.customStyle = butterflyStyle;
-  b.opacity = newOpacity;
+  b.opacity = 1;
   ornaments.push(b);
   selected = b;
   updateHint('已添加蝴蝶 · 可拖动或删除');
@@ -922,7 +892,8 @@ function syncButterflyTools() {
   if (b) pressChoice('single-styles', b.customStyle === undefined ? (usePosedWings && b.pose !== undefined ? b.pose : butterflyStyle) : b.customStyle);
   const color = b ? (b.customColor === undefined ? (b.tone < Number($('rich').value) / 100 ? 0 : 1) : b.customColor) : newColor;
   pressChoice('butterfly-colors', color);
-  const opacity = Math.round((b ? b.opacity : newOpacity) * 100);
+  const opacity = Math.round((b?.opacityOverride ?? newOpacity) * 100);
+  $('opacity-scope').textContent = b ? '选中蝴蝶浓淡' : '整树浓淡';
   $('opacity').value = opacity;
   $('opacity-out').textContent = opacity + '%';
 }
@@ -939,10 +910,6 @@ choices('palettes', allPalettes.map(p => p.name), palette, function (index) {
   palette = index;
   applyPalette();
 }, allPalettes);
-choices('background-choices', backgroundNames, backgroundStyle, function (index) {
-  backgroundStyle = index;
-  syncAnimation();
-});
 choices('styles', styles, butterflyStyle, index => {
   usePosedWings = false;
   butterflyStyle = index;
@@ -999,9 +966,12 @@ $('pale-color').addEventListener('change', function () {
 $('opacity').addEventListener('input', function () {
   const opacity = Number($('opacity').value) / 100;
   if (selected) {
-    selected.opacity = opacity;
+    selected.opacityOverride = opacity;
     selected.pinned = true;
-  } else newOpacity = opacity;
+  } else {
+    newOpacity = opacity;
+    for (const b of crown.concat(ornaments)) delete b.opacityOverride;
+  }
   syncButterflyTools();
   redraw();
 });

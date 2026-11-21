@@ -76,7 +76,7 @@ body{padding:0;background:#050912}header{height:48px;flex:none;background:#090f1
 #launch,.brush,#tabs{display:flex;align-items:center;gap:8px}#launch button,.brush button,#tabs button{border:1px solid #435366;background:#131f2c;color:#deeeff;border-radius:20px;min-height:40px;padding:5px 14px}#launch button{flex:1}#launch #preview,.actions .primary{background:#d6ecff;color:#173249;border:0}#tabs button{flex:1}#tabs button[aria-pressed=true]{background:#d6ecff;color:#163148}
 #tool-body{height:clamp(82px,17dvh,154px);overflow-y:auto;overscroll-behavior:contain;margin:9px 0}.brush{justify-content:space-between;font-size:12px}.panel legend{color:#d9eaff}.choices button,.butterfly-tools,.color-pickers label{background:#121e2c;color:#d7e5f1;border-color:#344453}.choices button[aria-pressed=true]{background:#243c52;border-color:#a6d7ff;box-shadow:none}.actions{gap:7px}.actions button{border-color:#495d70;border-radius:20px}.actions .primary{margin:0}.panel fieldset{margin-bottom:8px}
 </style>
-<script defer="" src="./wings.js"></script><script defer="" src="./tree.js"></script>
+<script defer="" src="./wings.js"></script><script defer="" src="./backdrop.js"></script><script defer="" src="./tree.js"></script>
 </head>
 <body>
 <main>
@@ -92,36 +92,28 @@ body{padding:0;background:#050912}header{height:48px;flex:none;background:#090f1
 </div>
 <div class="hintbar"><span id="hint" role="status">点蝴蝶换色 · 拖动调整位置</span><button disabled="" id="remove" type="button">删除选中</button></div>
 </section>
-<section id="launch"><button id="decorate">装饰</button><button id="preview">✧ 点亮</button></section><section aria-label="树饰设置" class="panel" hidden="" id="edit-panel"><nav aria-label="装饰工具" id="tabs"><button data-tab="butterfly">蝴蝶</button><button data-tab="background">背景</button><button data-tab="color">配色</button><button data-tab="lightfx">光效</button></nav><div id="tool-body"><div data-pane="background"><fieldset><legend>背景</legend><div class="choices" id="background-choices"></div></fieldset><fieldset><legend>画笔</legend><div class="choices three" id="brushes"></div></fieldset><div class="brush"><span>轻点或滑动，成簇点缀</span><button disabled="" id="undo">撤销一笔</button></div></div><div data-pane="butterfly"><fieldset><legend>蝶形样式</legend><div class="choices three" id="styles"></div></fieldset><fieldset><legend>蝴蝶排布</legend><div class="choices three" id="layouts"></div></fieldset><div class="butterfly-tools">
-<div class="tool-heading"><p class="tool-title" id="tool-title">新蝴蝶</p><button hidden="" id="deselect" type="button">取消选择</button></div>
-<fieldset hidden="" id="single-style"><legend>当前蝶形</legend><div class="choices three" id="single-styles"></div></fieldset>
-<fieldset><legend>蝴蝶颜色</legend><div class="choices three" id="butterfly-colors"></div></fieldset>
-<label for="opacity">蝴蝶浓淡 <output id="opacity-out">90%</output><input id="opacity" max="100" min="25" type="range" value="90"/></label>
-</div><div class="sliders">
-<label for="rich">主色比例 <output id="rich-out">67%</output><input id="rich" max="100" min="0" type="range" value="67"/></label>
-<label for="density">密度 <output id="density-out">45</output><input id="density" max="108" min="28" type="range" value="45"/></label>
-<label for="size">大小 <output id="size-out">100%</output><input id="size" max="140" min="65" type="range" value="100"/></label>
-</div></div><div data-pane="color"><fieldset><legend>蝴蝶配色</legend><div class="choices" id="palettes"></div>
+<section id="launch"><button id="decorate">装饰</button><button id="preview">✧ 点亮</button></section><section aria-label="树饰设置" class="panel" hidden="" id="edit-panel"><nav aria-label="装饰工具" id="tabs"><button data-tab="butterfly">蝴蝶</button><button data-tab="background">背景</button><button data-tab="lightfx">光效</button></nav><div id="tool-body"><div data-pane="background"><fieldset><legend>画笔</legend><div class="choices three" id="brushes"></div></fieldset><div class="brush"><span>轻点或滑动，成簇点缀</span><button disabled="" id="undo">撤销一笔</button></div></div><div data-pane="butterfly"><label for="opacity"><span id="opacity-scope">整树浓淡</span><output id="opacity-out">90%</output><input id="opacity" max="100" min="25" type="range" value="90"/></label><fieldset><legend>蝶形样式</legend><div class="choices three" id="styles"></div></fieldset><fieldset><legend>蝴蝶配色</legend><div class="choices" id="palettes"></div>
 <div class="color-pickers">
 <label for="rich-color"><span>主色</span><input aria-label="自选蝴蝶主色" id="rich-color" type="color" value="#4a9bff"/></label>
 <label for="pale-color"><span>浅色</span><input aria-label="自选蝴蝶浅色" id="pale-color" type="color" value="#d4f7ff"/></label>
 </div>
 <p class="palette-note">主色比例控制蝶色分布；手动添蝶可单独选主色、浅色或双色。</p>
-</fieldset></div><div data-pane="lightfx"><fieldset><legend>树周闪光</legend><div class="choices" id="effects-choices"><button data-overlay="sparkle" aria-pressed="true">星闪</button><button data-overlay="bokeh" aria-pressed="false">柔光斑</button></div></fieldset><fieldset><legend>顶部星形</legend><div class="choices" id="topper-choices"></div></fieldset></div></div>
+</fieldset><fieldset><legend>蝴蝶排布</legend><div class="choices three" id="layouts"></div></fieldset><div class="butterfly-tools">
+<div class="tool-heading"><p class="tool-title" id="tool-title">新蝴蝶</p><button hidden="" id="deselect" type="button">取消选择</button></div>
+<fieldset hidden="" id="single-style"><legend>当前蝶形</legend><div class="choices three" id="single-styles"></div></fieldset>
+<fieldset><legend>蝴蝶颜色</legend><div class="choices three" id="butterfly-colors"></div></fieldset>
 
-
-
-
-
-
-
-
+</div><div class="sliders">
+<label for="rich">主色比例 <output id="rich-out">67%</output><input id="rich" max="100" min="0" type="range" value="67"/></label>
+<label for="density">密度 <output id="density-out">45</output><input id="density" max="108" min="28" type="range" value="45"/></label>
+<label for="size">大小 <output id="size-out">100%</output><input id="size" max="140" min="65" type="range" value="100"/></label>
+</div></div><div data-pane="lightfx"><fieldset><legend>树周闪光</legend><div class="choices" id="effects-choices"><button aria-pressed="true" data-overlay="sparkle">星闪</button><button aria-pressed="false" data-overlay="bokeh">柔光斑</button></div></fieldset><fieldset><legend>顶部星形</legend><div class="choices" id="topper-choices"></div></fieldset></div></div>
 <div class="actions"><button id="done">完成</button><button id="reset" type="button">重新生成</button><button class="primary" id="light" type="button">点亮圣诞树</button></div>
 </section>
 <section aria-label="贺卡设置" class="panel" hidden="" id="card-panel">
 <label for="name">收卡人名字</label>
 <input id="name" maxlength="24" placeholder="输入名字，写在贺卡上" type="text"/>
-<label style="display:flex;align-items:center;gap:12px;margin-top:8px">赠语颜色 <input type="color" id="text-color" value="#e1f1ff"> <small>拖动画布上的赠语调整位置</small></label><div class="actions"><button id="back" type="button">继续装饰</button><button class="primary" id="export" type="button">保存分享卡</button></div>
+<label style="display:flex;align-items:center;gap:12px;margin-top:8px">赠语颜色 <input id="text-color" type="color" value="#e1f1ff"/> <small>拖动画布上的赠语调整位置</small></label><div class="actions"><button id="back" type="button">继续装饰</button><button class="primary" id="export" type="button">保存分享卡</button></div>
 <p id="result" role="status"></p>
 </section>
 </div>
