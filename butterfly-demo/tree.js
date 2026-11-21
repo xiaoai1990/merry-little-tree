@@ -57,12 +57,12 @@ stardustGif.onload = function () {
   }
 };
 stardustGif.src = './assets/silver-stardust.gif';
-const luminousButterfly = new Image();
-luminousButterfly.onload = function () {
-  buildSprites();
-  redraw();
-};
-luminousButterfly.src = './assets/butterfly-light.png';
+const wingImages = wingSources.map(source => {
+  const img = new Image();
+  img.onload = () => { buildSprites(); redraw(); };
+  img.src = source;
+  return img;
+});
 
 function rng(seed) {
   return function () {
@@ -178,8 +178,8 @@ function makeButterfly(color, secondary, style, rich, dual) {
   const g = sprite.getContext('2d');
   g.translate(102, 96);
   const strength = rich ? 1 : .78;
-  if (style === 2 && luminousButterfly.complete && luminousButterfly.naturalWidth) {
-    const image = () => g.drawImage(luminousButterfly, -99, -94, 198, 188);
+  if (wingImages[style].naturalWidth) {
+    const image = () => g.drawImage(wingImages[style], -99, -77, 198, 154);
     halo(g, 0, 0, 88, color, rich ? .16 : .10);
     g.save();
     g.shadowColor = color;
@@ -187,7 +187,7 @@ function makeButterfly(color, secondary, style, rich, dual) {
     image();
     g.shadowBlur = 0;
     g.globalCompositeOperation = 'source-atop';
-    g.globalAlpha = rich ? .58 : .31;
+    g.globalAlpha = palette === 0 && !dual ? .10 : rich ? .52 : .38;
     if (dual) {
       const tint = g.createLinearGradient(-102, -24, 102, 24);
       tint.addColorStop(0, color);
@@ -353,37 +353,34 @@ function buildLoopLayers(seed) {
 
 // Insert each butterfly in the widest available gap. Every density is a
 // prefix of the same arrangement, so changing density never moves a wing.
+const posedRows = [
+[[195,190,37,0,-22]],[[191,222,46,2,-15],[211,229,30,0,18]],
+[[176,254,48,2,-27],[209,260,43,1,15]],[[158,287,48,0,-16],[188,284,40,1,8],[223,296,54,2,21]],
+[[173,320,53,2,-19],[207,323,44,0,24],[236,326,34,1,14]],
+[[145,349,56,2,-22],[183,351,37,1,-9],[215,357,49,2,9],[250,355,44,0,34]],
+[[132,382,45,1,-27],[163,385,48,2,8],[197,387,49,0,-9],[232,387,38,1,18],[268,391,56,2,18]],
+[[143,418,56,2,-13],[180,421,47,0,10],[217,425,57,2,18],[254,421,39,1,16]],
+[[110,450,57,0,-30],[147,453,48,2,6],[183,455,40,1,8],[215,458,50,0,-12],[249,452,47,2,13],[283,460,56,2,24]],
+[[100,492,54,1,-18],[136,486,58,2,-23],[175,489,46,0,8],[208,493,48,2,11],[242,489,37,1,20],[277,495,50,0,15],[301,496,42,2,34]],
+[[71,535,63,2,-29],[112,525,43,0,-6],[149,534,54,2,9],[186,529,42,1,-16],[219,535,56,2,3],[258,526,44,0,19],[290,534,56,1,15],[324,540,46,2,27]]];
 function buildCrown(seed) {
   const random = rng(seed);
   crown = [];
-  function place(x, y) {
-    const order = crown.length;
-    const size = order === 0 ? 18 : (order % 5 === 2 ? 32 : order % 7 === 4 ? 19 : 26) + random() * 3;
-    const b = butterfly(x, y, size, random, undefined, order, (random() - .5) * .65, x - center);
-    b.tone = (order * .618034 + .12) % 1;
-    b.opacity = .89 + random() * .11;
+  posedRows.forEach((row,r) => row.forEach(([x,y,w,pose,angle],col) => {
+    const b = butterfly(center+(x-center)*.84, 117+(y-190)*.78,
+      w*.65,random,r,col,angle*Math.PI/180,1);
+    b.pose = pose;
+    b.opacity = .98;
+    b.tone = pose === 1 ? .8+random()*.19 : random()*.65;
+    crown.push(b);
+  }));
+  const originals = crown.slice();
+  while(crown.length < 108) {
+    const ref = originals[Math.floor(random()*originals.length)];
+    const b = butterfly(ref.x+(random()-.5)*28,ref.y+(random()-.5)*24,12+random()*5,random,ref.row,0,random()*.5,1);
     crown.push(b);
   }
-  place(center, 123);
-  // Tips of the three branch tiers and a gently curved base.
-  [[51,200],[92,277],[137,365]].forEach(([radius,y]) => {
-    place(center-radius,y); place(center+radius,y+2);
-  });
-  place(center,380);
-  while (crown.length < 108) {
-    let best, widest = -Infinity;
-    for (let attempt = 0; attempt < 90; attempt++) {
-      const y = 127 + random() * 250;
-      const half = y < 202 ? 8+(y-127)*.58 : y < 279 ? 34+(y-202)*.77 : 63+(y-279)*.85;
-      const x = (random()*2-1)*half;
-      if (y > 379 - 13*Math.pow(Math.abs(x)/140,2)) continue;
-      const gap = Math.min(...crown.map(b => Math.hypot(center+x-b.x,(y-b.y)*1.12)-b.size*.36));
-      if (gap > widest) { widest=gap; best=[center+x,y]; }
-    }
-    if (best) place(...best);
-  }
 }
-
 function regenerate(seed) {
   const random = rng(seed);
   const rows = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 15];
@@ -433,7 +430,7 @@ function spreadRow(items, target) {
 function activeButterflies() {
   if (arrangement === 2) {
     const count = Number($('density').value);
-    return crown.filter((b,i) => !b.deleted && (i<count || b.pinned))
+    return crown.filter((b,i) => !b.deleted && ((i<45 ? Math.floor((i+1)*Math.min(count,45)/45)>Math.floor(i*Math.min(count,45)/45) : i<count) || b.pinned))
       .concat(ornaments.filter(b => b.pinned && !b.deleted && b.row === undefined));
   }
   const density = Number($('density').value) / 108;
@@ -474,7 +471,7 @@ function butterflySize(b) { return b.size * Number($('size').value) / 100; }
 
 function paintButterfly(g, b) {
   const rich = b.tone < Number($('rich').value) / 100;
-  const style = b.customStyle === undefined ? butterflyStyle : b.customStyle;
+  const style = b.customStyle === undefined ? (butterflyStyle === 2 && b.pose !== undefined ? b.pose : butterflyStyle) : b.customStyle;
   const color = b.customColor === undefined ? (rich ? 0 : 2) + b.color :
     b.customColor === 2 ? 5 : b.customColor * 2 + b.color;
   const sprite = sprites[style][color];
@@ -682,6 +679,10 @@ function heading(g) {
 
 function paintBase(g, includeSelection) {
   background(g);
+  for (const stroke of starStrokes) for (const p of stroke) {
+    halo(g,p.x,p.y,p.r*2,'#badfff',.23);
+    sparkle(g,p.x,p.y,p.r,'#eff9ff',.96);
+  }
   if (arrangement === 1) drawHelixGuide(g);
   const active = activeButterflies();
   active.forEach(b => paintButterfly(g, b));
@@ -690,7 +691,7 @@ function paintBase(g, includeSelection) {
     const pulse = 1-Math.abs(performance.now()-lightStart-1450)/240;
     if (pulse > 0) sparkle(g,center,87,17+20*pulse,'#ffffff',pulse);
   }
-  if (lit) heading(g);
+  heading(g);
   if (includeSelection && selected) {
     const s = butterflySize(selected);
     g.save();
@@ -823,7 +824,13 @@ function syncAnimation() {
 }
 
 function resize() {
-  const cssWidth = canvas.clientWidth;
+  const stage = canvas.parentElement;
+  const cssWidth = Math.min(stage.clientWidth,stage.clientHeight * width / height);
+  for (const c of [canvas,layer]) {
+    c.style.width = cssWidth + 'px';
+    c.style.height = Math.round(cssWidth * height / width) + 'px';
+  }
+  if (!cssWidth) return;
   canvas.style.height = Math.round(cssWidth / width * height) + 'px';
   resolution = Math.min(2, window.devicePixelRatio || 1);
   [canvas, layer].forEach(function (c) {
@@ -858,7 +865,7 @@ function updateHint(message) {
   $('remove').disabled = !selected || lit;
   syncButterflyTools();
   $('hint').textContent = message || (lit ? '预览贺卡 · 可填写收卡人名字' :
-    selected ? '已选中蝴蝶 · 可拖动或删除' : '拖动蝴蝶调整位置 · 点空白添加');
+    selected ? '已选中蝴蝶 · 可拖动或删除' : activeTool === 'background' ? '滑动画布绘制星星' : activeTool === 'butterfly' ? '拖动蝴蝶调整位置 · 点空白添加' : '选择装饰，或点亮你的圣诞树');
 }
 
 function deselect() {
@@ -876,7 +883,7 @@ function erase() {
 }
 
 function start(event) {
-  if (lit || gesture || (event.button !== undefined && event.button !== 0)) return;
+  if (lit || activeTool !== 'butterfly' || gesture || (event.button !== undefined && event.button !== 0)) return;
   const p = point(event);
   const ornament = hit(p);
   gesture = { id: event.pointerId, start: p, ornament,
@@ -958,6 +965,7 @@ function choices(id, labels, current, callback, colors) {
 
 function setLit(value) {
   lit = value;
+  $('launch').hidden = value || !!activeTool;
   if (value) lightStart = performance.now();
   selected = null;
   canvas.style.cursor = value ? 'default' : 'crosshair';
@@ -1055,7 +1063,7 @@ function syncButterflyTools() {
   $('tool-title').textContent = b ? '已选蝴蝶' : '新蝴蝶';
   $('single-style').hidden = !b;
   $('deselect').hidden = !b;
-  if (b) pressChoice('single-styles', b.customStyle === undefined ? butterflyStyle : b.customStyle);
+  if (b) pressChoice('single-styles', b.customStyle === undefined ? (butterflyStyle === 2 && b.pose !== undefined ? b.pose : butterflyStyle) : b.customStyle);
   const color = b ? (b.customColor === undefined ? (b.tone < Number($('rich').value) / 100 ? 0 : 1) : b.customColor) : newColor;
   pressChoice('butterfly-colors', color);
   const opacity = Math.round((b ? b.opacity : newOpacity) * 100);
@@ -1151,6 +1159,51 @@ choices('topper-choices', topperNames, topper, index => { topper = index; });
   });
 });
 
+let activeTool = '';
+const starStrokes = [];
+let brush = null;
+function selectTool(tool) {
+  activeTool = tool;
+  brush = null;
+  gesture = null;
+  selected = null;
+  $('launch').hidden = !!tool;
+  $('edit-panel').hidden = !tool;
+  document.querySelectorAll('[data-pane]').forEach(p => p.hidden = p.dataset.pane !== tool);
+  document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === tool)));
+  $('tool-body').scrollTop = 0;
+  $('reset').hidden = tool !== 'butterfly';
+  updateHint(tool === 'background' ? '滑动画布绘制星星' : tool === 'butterfly' ? '点空处添蝶 · 拖动调整位置' : '蝶光圣诞树');
+  resize();
+}
+$('tabs').addEventListener('click', e => { if(e.target.dataset.tab) selectTool(e.target.dataset.tab); });
+$('decorate').onclick = () => selectTool('background');
+$('done').onclick = () => selectTool('');
+$('preview').onclick = () => setLit(true);
+$('undo').onclick = () => { brush = null; starStrokes.pop(); $('undo').disabled = !starStrokes.length; redraw(); };
+canvas.addEventListener('pointerdown', e => {
+  if(lit || activeTool !== 'background' || brush || e.button !== 0) return;
+  const p = point(e);
+  const stroke = [{x:p.x,y:p.y,r:3.8}];
+  starStrokes.push(stroke);
+  brush = {id:e.pointerId,stroke};
+  canvas.setPointerCapture(e.pointerId);
+  $('undo').disabled = false;
+  redraw();
+});
+canvas.addEventListener('pointermove', e => {
+  if(!brush || brush.id !== e.pointerId) return;
+  const p = point(e), stroke = brush.stroke, last = stroke[stroke.length-1];
+  const distance = Math.hypot(p.x-last.x,p.y-last.y);
+  for(let step=15;step<=distance;step+=15) {
+    const x=last.x+(p.x-last.x)*step/distance, y=last.y+(p.y-last.y)*step/distance;
+    if(x<0 || x>width || y<0 || y>height) break;
+    stroke.push({x,y,r:2.4+Math.random()*3});
+  }
+  if(distance>=15) redraw();
+});
+for(const name of ['pointerup','pointercancel','lostpointercapture'])
+  canvas.addEventListener(name,e => { if(brush && brush.id===e.pointerId) brush=null; });
 const hasPointer = 'PointerEvent' in window;
 canvas.addEventListener(hasPointer ? 'pointerdown' : 'mousedown', start);
 canvas.addEventListener(hasPointer ? 'pointermove' : 'mousemove', move);
@@ -1170,7 +1223,7 @@ $('reset').addEventListener('click', function () {
   redraw();
 });
 $('light').addEventListener('click', () => setLit(true));
-$('back').addEventListener('click', () => setLit(false));
+$('back').addEventListener('click', () => { setLit(false); selectTool(activeTool || 'background'); });
 $('name').addEventListener('input', redraw);
 $('export').addEventListener('click', saveCard);
 window.addEventListener('resize', resize);
@@ -1185,3 +1238,5 @@ syncButterflyTools();
 updateHint();
 resize();
 syncAnimation();
+
+if (window.ResizeObserver) new ResizeObserver(resize).observe(canvas.parentElement);
