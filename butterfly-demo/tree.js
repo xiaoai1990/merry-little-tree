@@ -15,7 +15,7 @@ const customPalette = { name: '自选', rich: ['#4a9bff', '#80c7ff'], pale: ['#d
 const allPalettes = palettes.concat(customPalette);
 const customPaletteIndex = palettes.length;
 const styles = ['侧光蝶影', '冰晶蝶翼', '幻彩蝶翼'];
-const layoutNames = ['错落蝶群', '蝶翼圣诞树'];
+const layoutNames = ['错落蝶群', '蝴蝶圣诞树'];
 const butterflyColors = ['主色', '浅色', '双色'];
 const overlays = { sparkle: true, bokeh: false };
 const topperNames = ['金辉五角', '冰晶八芒', '银雪星芒'];
@@ -39,6 +39,8 @@ let crown = [];
 let flutterUntil = 0;
 let lightStart = -5000;
 let newColor = 0;
+let nextScale = 1;
+let nextTint = null;
 let newOpacity = .90;
 let lit = false;
 let selected = null;
@@ -386,14 +388,21 @@ function activeButterflies() {
   return ornaments.filter(b => !b.deleted && active.has(b));
 }
 
-function butterflySize(b) { return b.size * Number($('size').value) / 100; }
+function butterflySize(b) { return b.size * (b.scale || 1) * Number($('size').value) / 100; }
 
 function paintButterfly(g, b) {
   const rich = b.tone < Number($('rich').value) / 100;
   const style = b.customStyle === undefined ? (usePosedWings && b.pose !== undefined ? b.pose : butterflyStyle) : b.customStyle;
   const color = b.customColor === undefined ? (rich ? 0 : 2) + b.color :
     b.customColor === 2 ? 5 : b.customColor * 2 + b.color;
-  const sprite = sprites[style][color];
+  let sprite = sprites[style][color];
+  if (b.tint) {
+    if (b.tintKey !== style+b.tint || !b.tintSprite) {
+      b.tintKey = style+b.tint;
+      b.tintSprite = makeButterfly(b.tint,b.tint,style,true,false);
+    }
+    sprite = b.tintSprite;
+  }
   const s = butterflySize(b);
   g.save();
   g.translate(b.x, b.y);
@@ -406,7 +415,7 @@ function paintButterfly(g, b) {
     if (distance < 36) halo(g,0,0,s*.85,paletteColors().pale[1],.55*(1-distance/36));
   }
   if (style === 0) g.scale(b.mirror, 1);
-  g.globalAlpha = (b.opacityOverride ?? newOpacity) * b.opacity * (lit ? 1 : .93);
+  g.globalAlpha = (b.opacityOverride !== undefined ? b.opacityOverride : newOpacity) * b.opacity * (lit ? 1 : .93);
   g.drawImage(sprite, -s * .67, -s * .64, s * 1.34, s * 1.28);
   g.restore();
 }
@@ -755,6 +764,8 @@ function finish(event) {
   }
   const b = butterfly(p.x, p.y, 35, Math.random);
   b.pinned = true;
+  b.scale = nextScale;
+  b.tint = nextTint;
   b.customColor = newColor;
   b.customStyle = butterflyStyle;
   b.opacity = 1;
@@ -842,7 +853,7 @@ async function saveCard() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = '蝶光圣诞树.png';
+    link.download = '蝴蝶圣诞树.png';
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -886,13 +897,20 @@ function updateColorSwatches() {
 
 function syncButterflyTools() {
   const b = selected;
+  $('individual-title').textContent = b ? '已选蝴蝶' : '点空处添蝶';
+  const pct = Math.round((b ? b.scale || 1 : nextScale)*100);
+  $('wing-size').value = pct;
+  $('wing-size-out').textContent = pct+'%';
+  const scheme = paletteColors();
+  const tone = b && b.customColor === undefined ? (b.tone < Number($('rich').value)/100 ? 0 : 1) : b ? b.customColor : newColor;
+  $('wing-color').value = (b ? b.tint : nextTint) || (tone === 1 ? scheme.pale[0] : scheme.rich[0]);
   $('tool-title').textContent = b ? '已选蝴蝶' : '新蝴蝶';
   $('single-style').hidden = !b;
   $('deselect').hidden = !b;
   if (b) pressChoice('single-styles', b.customStyle === undefined ? (usePosedWings && b.pose !== undefined ? b.pose : butterflyStyle) : b.customStyle);
   const color = b ? (b.customColor === undefined ? (b.tone < Number($('rich').value) / 100 ? 0 : 1) : b.customColor) : newColor;
   pressChoice('butterfly-colors', color);
-  const opacity = Math.round((b?.opacityOverride ?? newOpacity) * 100);
+  const opacity = Math.round((b && b.opacityOverride !== undefined ? b.opacityOverride : newOpacity) * 100);
   $('opacity-scope').textContent = b ? '选中蝴蝶浓淡' : '整树浓淡';
   $('opacity').value = opacity;
   $('opacity-out').textContent = opacity + '%';
@@ -927,9 +945,11 @@ choices('single-styles', styles, butterflyStyle, index => {
 });
 choices('butterfly-colors', butterflyColors, newColor, index => {
   if (selected) {
+    selected.tint = null;
     selected.customColor = index;
     selected.pinned = true;
-  } else newColor = index;
+  } else {newColor = index; nextTint = null;}
+  syncButterflyTools();
 }, butterflyColors.map(() => ({ rich: ['#ffffff'], pale: ['#ffffff', '#ffffff'] })));
 $('rich-color').addEventListener('change', function () {
   if (palette !== customPaletteIndex) {
@@ -1008,7 +1028,7 @@ function selectTool(tool) {
   document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === tool)));
   $('tool-body').scrollTop = 0;
   $('reset').hidden = tool !== 'butterfly';
-  updateHint(tool === 'background' ? '滑动画布绘制星星' : tool === 'butterfly' ? '点空处添蝶 · 拖动调整位置' : '蝶光圣诞树');
+  updateHint(tool === 'background' ? '滑动画布绘制星星' : tool === 'butterfly' ? '点空处添蝶 · 拖动调整位置' : '蝴蝶圣诞树');
   resize();
 }
 $('tabs').addEventListener('click', e => { if(e.target.dataset.tab) selectTool(e.target.dataset.tab); });
@@ -1098,6 +1118,15 @@ document.addEventListener('visibilitychange', syncAnimation);
 if (reducedMotion.addEventListener) reducedMotion.addEventListener('change', syncAnimation);
 else if (reducedMotion.addListener) reducedMotion.addListener(syncAnimation);
 
+$('wing-size').oninput = function(){
+  const scale = Number(this.value)/100;
+  if(selected){selected.scale=scale;selected.pinned=true;} else nextScale=scale;
+  syncButterflyTools();redraw();
+};
+$('wing-color').oninput = function(){
+  if(selected){selected.tint=this.value;selected.pinned=true;} else nextTint=this.value;
+  redraw();
+};
 regenerate(121625);
 buildSprites();
 updateColorSwatches();
