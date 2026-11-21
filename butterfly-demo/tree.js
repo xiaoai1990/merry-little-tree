@@ -15,9 +15,9 @@ const customPalette = { name: '自选', rich: ['#4a9bff', '#80c7ff'], pale: ['#d
 const allPalettes = palettes.concat(customPalette);
 const customPaletteIndex = palettes.length;
 const styles = ['侧光蝶影', '冰晶蝶翼', '幻彩蝶翼'];
-const layoutNames = ['错落蝶群', '绕线蝶树', '蝶翼圣诞树'];
+const layoutNames = ['错落蝶群', '蝶翼圣诞树'];
 const butterflyColors = ['主色', '浅色', '双色'];
-const effectNames = ['星尘', '光斑', '流光', '极光'];
+const overlays = { sparkle: true, bokeh: false };
 const topperNames = ['金辉五角', '冰晶八芒', '银雪星芒'];
 const backgroundNames = ['深空微光', '银色星尘'];
 const canvas = $('scene');
@@ -28,10 +28,13 @@ const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let palette = 0;
 let customPaletteUsed = false;
 let backgroundStyle = 0;
-let effect = 2;
+let brushType = 0;
+const dedication = {x:center, y:height-16};
+let textDrag = null;
 let topper = 2;
 let butterflyStyle = 2;
-let arrangement = 2;
+let arrangement = 1;
+let usePosedWings = true;
 let crown = [];
 let flutterUntil = 0;
 let lightStart = -5000;
@@ -41,9 +44,7 @@ let lit = false;
 let selected = null;
 let gesture = null;
 let ornaments = [];
-let loopButterflies = [];
-let fillButterflies = [];
-let gapButterflies = [];
+
 let sprites = [];
 let frame = 0;
 let lastFrame = 0;
@@ -179,27 +180,22 @@ function makeButterfly(color, secondary, style, rich, dual) {
   g.translate(102, 96);
   const strength = rich ? 1 : .78;
   if (wingImages[style].naturalWidth) {
-    const image = () => g.drawImage(wingImages[style], -99, -77, 198, 154);
-    halo(g, 0, 0, 88, color, rich ? .16 : .10);
-    g.save();
-    g.shadowColor = color;
-    g.shadowBlur = 8;
-    image();
-    g.shadowBlur = 0;
-    g.globalCompositeOperation = 'source-atop';
-    g.globalAlpha = palette === 0 && !dual ? .10 : rich ? .52 : .38;
-    if (dual) {
-      const tint = g.createLinearGradient(-102, -24, 102, 24);
-      tint.addColorStop(0, color);
-      tint.addColorStop(.48, color);
-      tint.addColorStop(.52, secondary);
-      tint.addColorStop(1, secondary);
-      g.fillStyle = tint;
-    } else g.fillStyle = color;
-    g.fillRect(-102, -96, 204, 194);
-    g.restore();
-    halo(g, -68, -48, 12, '#ffffff', .34);
-    halo(g, 68, -48, 12, '#ffffff', .34);
+    g.drawImage(wingImages[style], -99, -77, 198, 154);
+    const pixels = g.getImageData(0,0,204,194);
+    const channels = hex => [1,3,5].map(i => parseInt(hex.slice(i,i+2),16));
+    const base = channels(color), other = channels(secondary);
+    for (let i=0; i<pixels.data.length; i+=4) {
+      const d = pixels.data;
+      if (!d[i+3]) continue;
+      const value = Math.max(d[i],d[i+1],d[i+2])/255;
+      const glint = Math.pow(value,9)*.84;
+      const blend = dual ? (i/4%204)/203 : 0;
+      for (let c=0;c<3;c++) {
+        const tint = base[c]*(1-blend)+other[c]*blend;
+        d[i+c] = value*(tint*(1-glint)+255*glint);
+      }
+    }
+    g.putImageData(pixels,0,0);
     return sprite;
   }
   halo(g, 0, 1, 92, color, style === 1 ? .18 : .21);
@@ -297,62 +293,6 @@ function helixPoint(t) {
     y: 111 + t * 266 - Math.cos(a) * (1 + t * 22) };
 }
 
-function buildLoopLayers(seed) {
-  const random = rng((seed + 0x61c88647) >>> 0);
-  loopButterflies = [];
-  fillButterflies = [];
-  gapButterflies = [];
-  const mainCount = 16;
-  for (let i = 0; i < mainCount; i++) {
-    const t = 1 - i / (mainCount - 1);
-    const p = helixPoint(t);
-    const next = helixPoint(Math.max(0, t - .004));
-    const angle = Math.atan2(next.y - p.y, next.x - p.x) + Math.PI / 2;
-    const b = butterfly(p.x + (random() - .5) * 3.5, p.y + (random() - .5) * 3.5,
-      21.5 + random() * 4.5, random, -1, i, angle, Math.sin(t * 21 + .8));
-    b.tone = .06;
-    b.color = 0;
-    b.opacity = .92 + random() * .07;
-    loopButterflies.push(b);
-  }
-
-  const fillCounts = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 5, 5, 6, 6];
-  fillCounts.forEach(function (count, row) {
-    const y = 139 + row * 16.1;
-    const half = 10 + row * 9.2;
-    for (let column = 0; column < count; column++) {
-      const rowStagger = row % 2 ? 4 : -4;
-      const x = count === 1 ? center + rowStagger + (random() - .5) * 9 :
-        center + (column / (count - 1) * 2 - 1) * half + rowStagger + (random() - .5) * 11;
-      const b = butterfly(x, y + (random() - .5) * 8, 15.5 + random() * 4,
-        random, row, column, (random() - .5) * .28, Math.sign(x - center));
-      b.tone = .98;
-      b.color = 0;
-      b.opacity = .82 + random() * .14;
-      fillButterflies.push(b);
-    }
-  });
-
-  const gapCounts = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 7, 8];
-  gapCounts.forEach(function (count, row) {
-    const y = 147 + row * 16.1;
-    const half = 15 + row * 9.1;
-    for (let column = 0; column < count; column++) {
-      const rowStagger = row % 2 ? -3.5 : 3.5;
-      const x = count === 1 ? center + rowStagger + (random() - .5) * 16 :
-        center + (column / (count - 1) * 2 - 1) * half + rowStagger + (random() - .5) * 13;
-      const b = butterfly(x, y + (random() - .5) * 7, 10.5 + random() * 3,
-        random, row, column, (random() - .5) * .32, Math.sign(x - center));
-      b.tone = .99;
-      b.color = 1;
-      b.opacity = .72 + random() * .18;
-      gapButterflies.push(b);
-    }
-  });
-}
-
-// Insert each butterfly in the widest available gap. Every density is a
-// prefix of the same arrangement, so changing density never moves a wing.
 const posedRows = [
 [[195,190,37,0,-22]],[[191,222,46,2,-15],[211,229,30,0,18]],
 [[176,254,48,2,-27],[209,260,43,1,15]],[[158,287,48,0,-16],[188,284,40,1,8],[223,296,54,2,21]],
@@ -371,7 +311,7 @@ function buildCrown(seed) {
       w*.65,random,r,col,angle*Math.PI/180,1);
     b.pose = pose;
     b.opacity = .98;
-    b.tone = pose === 1 ? .8+random()*.19 : random()*.65;
+    b.tone = (crown.length * .61803398875 + .17) % 1;
     crown.push(b);
   }));
   const originals = crown.slice();
@@ -408,7 +348,7 @@ function regenerate(seed) {
       ornaments.push(b);
     }
   });
-  buildLoopLayers(seed);
+
   buildCrown(seed);
 }
 
@@ -428,30 +368,12 @@ function spreadRow(items, target) {
 }
 
 function activeButterflies() {
-  if (arrangement === 2) {
+  if (arrangement === 1) {
     const count = Number($('density').value);
     return crown.filter((b,i) => !b.deleted && ((i<45 ? Math.floor((i+1)*Math.min(count,45)/45)>Math.floor(i*Math.min(count,45)/45) : i<count) || b.pinned))
       .concat(ornaments.filter(b => b.pinned && !b.deleted && b.row === undefined));
   }
   const density = Number($('density').value) / 108;
-  if (arrangement === 1) {
-    const active = new Set();
-    loopButterflies.concat(ornaments.filter(b => b.pinned && b.row === undefined)).forEach(b => {
-      if (!b.deleted) active.add(b);
-    });
-    [fillButterflies, gapButterflies].forEach(function (layer) {
-      const rows = new Map();
-      layer.forEach(b => {
-        if (b.deleted) return;
-        if (b.pinned) { active.add(b); return; }
-        if (!rows.has(b.row)) rows.set(b.row, []);
-        rows.get(b.row).push(b);
-      });
-      rows.forEach(row => spreadRow(row, Math.max(1, Math.round(row.length * density))).forEach(b => active.add(b)));
-    });
-    return loopButterflies.concat(fillButterflies, gapButterflies,
-      ornaments.filter(b => b.pinned && b.row === undefined)).filter(b => !b.deleted && active.has(b));
-  }
   const rows = new Map();
   const active = new Set(ornaments.filter(b => !b.deleted && b.pinned));
   ornaments.forEach(function (b) {
@@ -471,7 +393,7 @@ function butterflySize(b) { return b.size * Number($('size').value) / 100; }
 
 function paintButterfly(g, b) {
   const rich = b.tone < Number($('rich').value) / 100;
-  const style = b.customStyle === undefined ? (butterflyStyle === 2 && b.pose !== undefined ? b.pose : butterflyStyle) : b.customStyle;
+  const style = b.customStyle === undefined ? (usePosedWings && b.pose !== undefined ? b.pose : butterflyStyle) : b.customStyle;
   const color = b.customColor === undefined ? (rich ? 0 : 2) + b.color :
     b.customColor === 2 ? 5 : b.customColor * 2 + b.color;
   const sprite = sprites[style][color];
@@ -641,13 +563,12 @@ function drawTopper(g) {
 }
 
 function drawHelixGuide(g) {
-  const colors = paletteColors();
   g.save();
   for (let strand = 0; strand < 3; strand++) {
     g.beginPath();
-    g.strokeStyle = alpha(strand === 1 ? colors.accent : colors.pale[1], strand === 1 ? .30 : .52);
+    g.strokeStyle = alpha(strand === 1 ? '#c5d7e8' : '#f1f7ff', strand === 1 ? .30 : .52);
     g.lineWidth = strand === 1 ? 2.5 : .8;
-    g.shadowColor = colors.accent;
+    g.shadowColor = '#c5d7e8';
     g.shadowBlur = strand === 1 ? 8 : 3;
     for (let i = 0; i <= 120; i++) {
       const t = i / 120;
@@ -673,17 +594,24 @@ function heading(g) {
   const name = $('name').value.trim();
   if (name) {
     g.font = '12px sans-serif';
-    g.fillText('送给 ' + name, center, 59, 344);
+    g.fillStyle = $('text-color').value;
+    const half = dedicationHalfWidth();
+    dedication.x = clamp(dedication.x, half+4, width-half-4);
+    g.fillText('送给 ' + name, dedication.x, dedication.y, 344);
   }
 }
 
 function paintBase(g, includeSelection) {
   background(g);
   for (const stroke of starStrokes) for (const p of stroke) {
-    halo(g,p.x,p.y,p.r*2,'#badfff',.23);
-    sparkle(g,p.x,p.y,p.r,'#eff9ff',.96);
+    if(p.type===2) halo(g,p.x,p.y,p.r,'#d2eaff',.52);
+    else if(p.type===1) circle(g,p.x,p.y,p.r,'rgba(209,236,255,.8)');
+    else sparkle(g,p.x,p.y,p.r,'#eff9ff',.92);
   }
-  if (arrangement === 1) drawHelixGuide(g);
+  g.save();
+  g.globalAlpha=.52;
+  drawHelixGuide(g);
+  g.restore();
   const active = activeButterflies();
   active.forEach(b => paintButterfly(g, b));
   drawTopper(g);
@@ -707,88 +635,16 @@ function paintBase(g, includeSelection) {
 function paintEffects(g, time) {
   const colors = paletteColors();
   const strength = lit ? 1 : .76;
-  if (effect === 0 || effect === 1) {
-    const dust = effect === 0;
-    stardust.forEach(function (p, i) {
-      if (i % (dust ? 2 : 5)) return;
-      const pulse = (.69 + .26 * Math.sin(p.phase + time * 1.4)) * strength;
-      if (dust) {
-        const r = (i % 8 ? 1.3 : 5.5) * (.6 + p.r);
-        sparkle(g, p.x, p.y, r, colors.pale[i % 2], pulse);
-        if (i % 8 === 0) halo(g, p.x, p.y, r * 1.4, colors.accent, .28 * pulse);
-      } else {
-        const radius = 6 + p.r * 17;
-        halo(g, p.x, p.y, radius, colors.pale[i % 2], .62 * pulse);
-        circle(g, p.x, p.y, radius * .15, alpha(colors.pale[i % 2], .24 * pulse));
-      }
-    });
-    return;
+  for(let i=0;i<6;i++){
+    const t=(i/6+time*.055)%1, p=helixPoint(t);
+    sparkle(g,p.x,p.y,1.6+t*1.7,'#f1f7ff',.55*strength);
   }
-  if (effect === 2) {
-    if (arrangement === 1) {
-      for (let i = 0; i < 9; i++) {
-        const t = (i / 9 + time * .10) % 1;
-        const p = helixPoint(t);
-        halo(g, p.x, p.y, 10, colors.pale[1], .46 * strength);
-        sparkle(g, p.x, p.y, 2 + t * 2.5, '#ffffff', .94 * strength);
-      }
-      for (let i = 0; i < 15; i++) {
-        const p = stardust[i * 5];
-        sparkle(g, p.x, p.y, 1.6 + p.r * 1.4, colors.pale[1], (.34 + .2 * Math.sin(p.phase + time)) * strength);
-      }
-      return;
-    }
-    if (arrangement === 2) g.globalAlpha = .20;
-    for (let strand = 0; strand < 4; strand++) {
-      g.beginPath();
-      g.strokeStyle = alpha(strand === 0 ? colors.pale[1] : colors.accent,
-        strength * (.48 - strand * .10));
-      g.lineWidth = strand ? .7 : 1.3;
-      for (let i = 0; i <= 100; i++) {
-        const t = i / 100;
-        const a = t * 21 + .8 + strand * .115;
-        const x = center + Math.sin(a) * (7 + t * 154);
-        const y = 111 + t * 266 - Math.cos(a) * (1 + t * 22) + strand * 1.4;
-        if (i === 0) g.moveTo(x, y);
-        else g.lineTo(x, y);
-      }
-      g.stroke();
-    }
-    for (let i = 0; i < 9; i++) {
-      const t = (i / 9 + time * .12) % 1;
-      const a = t * 21 + .8;
-      const x = center + Math.sin(a) * (7 + t * 154);
-      const y = 111 + t * 266 - Math.cos(a) * (1 + t * 22);
-      halo(g, x, y, 12 + t * 5, colors.pale[1], .55 * strength);
-      sparkle(g, x, y, 2 + 4 * t, '#ffffff', strength);
-    }
-    for (let i = 0; i < 18; i++) {
-      const p = stardust[i * 5];
-      sparkle(g, p.x, p.y, 2 + p.r * 2, colors.pale[1], (.36 + .24 * Math.sin(p.phase + time)) * strength);
-    }
-    return;
-  }
-
-  for (let ribbon = 0; ribbon < 3; ribbon++) {
-    const color = ribbon === 1 ? '#966ffc' : '#68ffe0';
-    const base = 165 + ribbon * 79;
-    const wave = x => base + Math.sin(x * .017 + time * .7 + ribbon) * (18 + ribbon * 3) - x * .18;
-    const ribbonGlow = g.createLinearGradient(0, base - 74, 0, base + 27);
-    ribbonGlow.addColorStop(0, alpha(color, 0));
-    ribbonGlow.addColorStop(.60, alpha(color, .23 * strength));
-    ribbonGlow.addColorStop(1, alpha(color, 0));
-    g.beginPath();
-    for (let x = 0; x <= width; x += 10) g.lineTo(x, wave(x) - 25);
-    for (let x = width; x >= 0; x -= 10) g.lineTo(x, wave(x) + 25);
-    g.closePath();
-    g.fillStyle = ribbonGlow;
-    g.fill();
-    g.beginPath();
-    for (let x = 0; x <= width; x += 10) g.lineTo(x, wave(x));
-    g.lineWidth = 1;
-    g.strokeStyle = alpha(color, .38 * strength);
-    g.stroke();
-  }
+  stardust.forEach((p,i)=>{
+    const pulse=(.76+.2*Math.sin(p.phase+time))*strength;
+    if(overlays.sparkle && i%5===0) sparkle(g,p.x,p.y,1.4+p.r*3.1,colors.pale[i%2],pulse);
+    if(overlays.bokeh && i%3===0 && Math.abs(p.x-center)>105 && p.y>70)
+      halo(g,p.x,p.y,5+p.r*13,colors.pale[i%2],pulse*.37);
+  });
 }
 
 function redraw() {
@@ -806,7 +662,7 @@ function redrawEffects() {
 function animate(now) {
   frame = 0;
   const animateBackground = backgroundStyle === 1 && stardustGif.complete && stardustGif.naturalWidth;
-  if ((!lit && !animateBackground && lastFrame >= flutterUntil) || reducedMotion.matches || document.hidden) return;
+  if (reducedMotion.matches || document.hidden) return;
   if (now - lastFrame > 32) {
     phase = now / 1000;
     if (animateBackground || lastFrame < flutterUntil || (lit && lastFrame-lightStart < 1710)) paintBase(ctx, true);
@@ -820,7 +676,7 @@ function syncAnimation() {
   if (frame) cancelAnimationFrame(frame);
   frame = 0;
   const animateBackground = backgroundStyle === 1 && stardustGif.complete && stardustGif.naturalWidth;
-  if ((lit || animateBackground || performance.now()<flutterUntil) && !reducedMotion.matches && !document.hidden) frame = requestAnimationFrame(animate);
+  if (!reducedMotion.matches && !document.hidden) frame = requestAnimationFrame(animate);
 }
 
 function resize() {
@@ -1063,7 +919,7 @@ function syncButterflyTools() {
   $('tool-title').textContent = b ? '已选蝴蝶' : '新蝴蝶';
   $('single-style').hidden = !b;
   $('deselect').hidden = !b;
-  if (b) pressChoice('single-styles', b.customStyle === undefined ? (butterflyStyle === 2 && b.pose !== undefined ? b.pose : butterflyStyle) : b.customStyle);
+  if (b) pressChoice('single-styles', b.customStyle === undefined ? (usePosedWings && b.pose !== undefined ? b.pose : butterflyStyle) : b.customStyle);
   const color = b ? (b.customColor === undefined ? (b.tone < Number($('rich').value) / 100 ? 0 : 1) : b.customColor) : newColor;
   pressChoice('butterfly-colors', color);
   const opacity = Math.round((b ? b.opacity : newOpacity) * 100);
@@ -1088,13 +944,14 @@ choices('background-choices', backgroundNames, backgroundStyle, function (index)
   syncAnimation();
 });
 choices('styles', styles, butterflyStyle, index => {
+  usePosedWings = false;
   butterflyStyle = index;
   syncButterflyTools();
 });
 choices('layouts', layoutNames, arrangement, index => {
   arrangement = index;
   selected = null;
-  updateHint(index === 1 ? '大蝶沿光带绕树上行 · 中蝶铺开树冠 · 小蝶填空隙' : '拖动蝴蝶调整位置 · 点空白添加');
+  updateHint('拖动蝴蝶调整位置 · 点空白添加');
 });
 choices('single-styles', styles, butterflyStyle, index => {
   if (!selected) return;
@@ -1148,7 +1005,15 @@ $('opacity').addEventListener('input', function () {
   syncButterflyTools();
   redraw();
 });
-choices('effects-choices', effectNames, effect, index => { effect = index; });
+for (const btn of $('effects-choices').querySelectorAll('button')) {
+  btn.onclick = () => {
+    const key = btn.dataset.overlay;
+    overlays[key] = !overlays[key];
+    btn.setAttribute('aria-pressed',String(overlays[key]));
+    redraw();
+  };
+}
+choices('brushes',['星簇','细闪','柔光点'],0,index=>{brushType=index;});
 choices('topper-choices', topperNames, topper, index => { topper = index; });
 ['rich', 'density', 'size'].forEach(function (id) {
   $(id).addEventListener('input', function () {
@@ -1177,28 +1042,60 @@ function selectTool(tool) {
   resize();
 }
 $('tabs').addEventListener('click', e => { if(e.target.dataset.tab) selectTool(e.target.dataset.tab); });
-$('decorate').onclick = () => selectTool('background');
+$('decorate').onclick = () => selectTool('butterfly');
 $('done').onclick = () => selectTool('');
 $('preview').onclick = () => setLit(true);
 $('undo').onclick = () => { brush = null; starStrokes.pop(); $('undo').disabled = !starStrokes.length; redraw(); };
+function stamp(stroke,x,y) {
+  const count = brushType===1 ? 16 : brushType===2 ? 5 : 6+Math.floor(Math.random()*4);
+  for(let i=0;i<count;i++){
+    const a=Math.random()*2*Math.PI, r=Math.sqrt(Math.random())*15;
+    stroke.push({x:x+Math.cos(a)*r,y:y+Math.sin(a)*r,type:brushType,
+      r:brushType===2 ? 3+Math.random()*5 : brushType===1 ? .4+Math.random() : 1+Math.random()*2.6});
+  }
+}
+function dedicationHalfWidth(){
+  ctx.save();ctx.font='12px sans-serif';
+  const w=Math.min(344,ctx.measureText('送给 '+$('name').value.trim()).width)/2;
+  ctx.restore();return w;
+}
+canvas.addEventListener('pointerdown',e=>{
+  if(!lit || !$('name').value.trim() || textDrag || e.button!==0) return;
+  const p=point(e);
+  if(Math.abs(p.x-dedication.x)>dedicationHalfWidth()+8 || Math.abs(p.y-dedication.y+5)>14) return;
+  textDrag={id:e.pointerId,dx:dedication.x-p.x,dy:dedication.y-p.y};
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove',e=>{
+  if(!textDrag || textDrag.id!==e.pointerId) return;
+  const p=point(e), half=dedicationHalfWidth();
+  dedication.x=clamp(p.x+textDrag.dx,half+4,width-half-4);
+  dedication.y=clamp(p.y+textDrag.dy,16,height-5);
+  redraw();
+});
+for(const type of ['pointerup','pointercancel','lostpointercapture'])
+  canvas.addEventListener(type,e=>{if(textDrag && textDrag.id===e.pointerId) textDrag=null;});
+$('text-color').oninput=redraw;
 canvas.addEventListener('pointerdown', e => {
   if(lit || activeTool !== 'background' || brush || e.button !== 0) return;
   const p = point(e);
-  const stroke = [{x:p.x,y:p.y,r:3.8}];
+  const stroke = [];
+  stamp(stroke,p.x,p.y);
   starStrokes.push(stroke);
-  brush = {id:e.pointerId,stroke};
+  brush = {id:e.pointerId,stroke,last:p};
   canvas.setPointerCapture(e.pointerId);
   $('undo').disabled = false;
   redraw();
 });
 canvas.addEventListener('pointermove', e => {
   if(!brush || brush.id !== e.pointerId) return;
-  const p = point(e), stroke = brush.stroke, last = stroke[stroke.length-1];
+  const p = point(e), stroke = brush.stroke, last = brush.last;
   const distance = Math.hypot(p.x-last.x,p.y-last.y);
   for(let step=15;step<=distance;step+=15) {
     const x=last.x+(p.x-last.x)*step/distance, y=last.y+(p.y-last.y)*step/distance;
     if(x<0 || x>width || y<0 || y>height) break;
-    stroke.push({x,y,r:2.4+Math.random()*3});
+    stamp(stroke,x,y);
+    brush.last={x,y};
   }
   if(distance>=15) redraw();
 });
@@ -1216,14 +1113,14 @@ canvas.addEventListener('keydown', function (event) {
 $('remove').addEventListener('click', erase);
 $('deselect').addEventListener('click', deselect);
 $('reset').addEventListener('click', function () {
-  if (ornaments.concat(crown, loopButterflies, fillButterflies, gapButterflies).some(b => b.pinned || b.deleted) &&
+  if (ornaments.concat(crown).some(b => b.pinned || b.deleted) &&
       !confirm('重新生成会清除手动移动、添加和删除，继续吗？')) return;
   regenerate(Date.now() >>> 0);
   updateHint('已重新生成 · 拖动或点空白继续装饰');
   redraw();
 });
 $('light').addEventListener('click', () => setLit(true));
-$('back').addEventListener('click', () => { setLit(false); selectTool(activeTool || 'background'); });
+$('back').addEventListener('click', () => { setLit(false); selectTool(activeTool || 'butterfly'); });
 $('name').addEventListener('input', redraw);
 $('export').addEventListener('click', saveCard);
 window.addEventListener('resize', resize);
